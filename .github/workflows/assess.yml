@@ -65,7 +65,7 @@ jobs:
       - { name: Tier, uses: ./actions/check, continue-on-error: true, with: { check: tier, working-directory: app } }
       - { name: Governance files, uses: ./actions/check, continue-on-error: true, with: { check: files, working-directory: app } }
       - { name: Secrets, uses: ./actions/secrets, continue-on-error: true, with: { working-directory: app } }
-      - { name: Dependencies, code and build, uses: ./actions/build, continue-on-error: true, with: { working-directory: app } }
+      - { name: "Dependencies, code and build", uses: ./actions/build, continue-on-error: true, with: { working-directory: app } }
 
       - name: Assess
         env:
