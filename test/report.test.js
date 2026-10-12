@@ -145,3 +145,25 @@ test('judgments for controls that are not flag controls on the tier are ignored'
 test('a report that would not validate throws instead of being written', () => {
   assert.throws(() => assembleReport({ ...base, app: 'Not A Slug', judgments: cleanJudgments() }), /report schema/);
 });
+
+const alert = (severity) => ({ id: 'alert-dependabot', severity, detail: `Dependabot has 1 open ${severity}-severity alert.`, evidence: 'https://github.com/DavidsonChoreo/academic-deadlines/security/dependabot' });
+
+test("open alerts join the security flags after Claude's, and a high one blocks", () => {
+  const judgments = cleanJudgments();
+  judgments.flags.push({ id: 'injection', severity: 'low', detail: 'A string-built query.', evidence: 'server/db.ts, line 3' });
+  const report = assembleReport({ ...base, judgments, alerts: [alert('high')] });
+  assert.deepEqual(report.sections.security.flags.map((f) => f.id), ['injection', 'alert-dependabot']);
+  assert.equal(report.sections.security.recommendation, 'block');
+  assert.equal(report.recommendation, 'block');
+});
+
+test('a low alert stays in the report without holding the app up', () => {
+  const report = assembleReport({ ...base, judgments: cleanJudgments(), alerts: [alert('low')] });
+  assert.equal(report.sections.security.flags.length, 1);
+  assert.equal(report.sections.security.recommendation, 'approve');
+});
+
+test('alerts stay in the report when the assessor declined', () => {
+  const report = assembleReport({ ...base, judgments: { refused: true }, alerts: [alert('medium')] });
+  assert.deepEqual(report.sections.security.flags.map((f) => f.id), ['alert-dependabot']);
+});

@@ -1,7 +1,8 @@
 // Runs the assessor: `node assessor/run.js <app dir> <results dir> <report path>`.
 // Reads the app, its passport and the checks' results, asks Claude for its
 // judgments, assembles report.json, and writes a readable summary to the job.
-// Needs ANTHROPIC_API_KEY.
+// Needs ANTHROPIC_API_KEY, and GITHUB_TOKEN with CHOREO_REPOSITORY to read
+// the app's open alerts.
 
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -12,6 +13,7 @@ import { parse, parseDocument } from 'yaml';
 import { loadControlMap } from '../checks/control-map.js';
 import { collectSources, buildRequest, runAssessment, completeJudgments, hasLlm } from './assess.js';
 import { assembleReport } from './report.js';
+import { collectAlerts } from './alerts.js';
 
 // The checks the publish request runs, in report order. One with no result
 // file didn't run: an earlier step stopped it, or the app's stack skips it.
@@ -52,12 +54,14 @@ const request = buildRequest({
 const client = new Anthropic();
 const judgments = completeJudgments(await runAssessment({ client, request }), { rubric, llm: hasLlm(passportBytes.toString('utf8')) });
 
+const alerts = await collectAlerts({ repository: process.env.CHOREO_REPOSITORY, github });
+
 const report = assembleReport({
   app: passport.app,
   passportSha: createHash('sha256').update(passportBytes).digest('hex'),
   commit: execFileSync('git', ['-C', appDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
-  tier, map, rubric, checkResults, judgments,
+  tier, map, rubric, checkResults, judgments, alerts,
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 // Claude's raw judgments, kept beside the report so a change to the
@@ -87,6 +91,19 @@ function summarize({ app, recommendation, summary, checks, sections }) {
     lines.push('');
   }
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+}
+
+// Answers { status, data }; with no token or repository, every kind of alert
+// reads as unavailable, which the report says.
+async function github(path) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token || !process.env.CHOREO_REPOSITORY) return { status: 0, data: null };
+  const response = await fetch(`https://api.github.com${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) console.log(`Alerts: ${path.split('?')[0]} answered ${response.status}${data?.message ? ` (${data.message})` : ''}.`);
+  return { status: response.status, data };
 }
 
 function stop(message) {
