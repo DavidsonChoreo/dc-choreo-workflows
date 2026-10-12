@@ -213,7 +213,7 @@
       }
     },
     "integrations": {
-      "description": "Every outside host and vendor the app calls.",
+      "description": "Every platform the app connects to, by name.",
       "type": "array",
       "items": { "$ref": "#/$defs/integration" }
     },
@@ -356,15 +356,11 @@
     },
     "integration": {
       "type": "object",
-      "required": ["host", "vendor", "purpose", "data_classification"],
+      "required": ["platform", "purpose", "data_classification"],
       "additionalProperties": false,
       "properties": {
-        "host": {
-          "description": "The host the app calls.",
-          "$ref": "#/$defs/hostname"
-        },
-        "vendor": {
-          "description": "Who runs it.",
+        "platform": {
+          "description": "The platform the app connects to, by name, such as Slate or Workday. Never a hostname: the repository goes public.",
           "type": "string",
           "minLength": 1
         },
