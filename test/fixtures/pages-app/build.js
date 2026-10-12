@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 mkdirSync('.output/public/about', { recursive: true });
-const page = '<!DOCTYPE html><html><head><title>Library hours</title></head><body></body></html>';
+const page = '<!DOCTYPE html><html lang="en"><head><title>Library hours</title></head><body><main><h1>Library hours</h1></main></body></html>';
 writeFileSync('.output/public/index.html', page);
 writeFileSync('.output/public/about/index.html', page);
 writeFileSync('.output/public/robots.txt', 'User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n');

@@ -6,6 +6,8 @@
 import { existsSync, readFileSync, readdirSync, appendFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { parseDocument } from 'yaml';
 import { checkPassport } from './passport.js';
 import { checkLicense } from './license.js';
@@ -14,6 +16,7 @@ import { checkFiles, checkCodeowners } from './files.js';
 import { explainSecrets } from './secrets.js';
 import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
+import { scanHttp, scanCors, explainAxe } from './code.js';
 import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from './dependencies.js';
 
 const CHECKS = {
@@ -27,18 +30,10 @@ const CHECKS = {
   indexing: { title: 'Indexing', run: runIndexing },
   dependencies: { title: 'Dependencies', run: runDependencies },
   unused: { title: 'Dependencies', run: runUnused },
+  code: { title: 'Code', run: runCode },
+  accessibility: { title: 'Accessibility', run: runAccessibility },
 };
 
-const name = process.argv[2];
-const check = CHECKS[name];
-if (!check) {
-  console.error(`usage: node checks/cli.js <${Object.keys(CHECKS).join('|')}>`);
-  process.exit(2);
-}
-
-const { file, problems, warnings } = await check.run();
-report(check.title, file, problems, warnings);
-process.exitCode = problems.length > 0 ? 1 : 0;
 
 function runPassport() {
   const file = 'PASSPORT.yml';
@@ -199,6 +194,102 @@ function runUnused() {
   return { file: 'package.json', ...explainUnused(JSON.parse(readFileSync(path, 'utf8'))) };
 }
 
+// Plain http:// calls and CORS open to any website, in source and config.
+const SOURCE = /\.(m?[jt]sx?|c[jt]s|vue|py|json|ya?ml|html|toml)$/;
+const NOT_SOURCE = new Set(['node_modules', '.git', '.output', '.nuxt', 'dist', '.venv', '__pycache__']);
+const LOCKFILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
+
+function runCode() {
+  const files = listFiles('.', NOT_SOURCE)
+    .filter((path) => SOURCE.test(path) && !LOCKFILES.has(path.split('/').pop()))
+    .map((path) => ({ path, text: readFileSync(path, 'utf8') }));
+  const results = [scanHttp(files), scanCors(files)];
+  return { file: 'PASSPORT.yml', problems: results.flatMap((r) => r.problems), warnings: [] };
+}
+
+// WCAG 2.0 AA on the built site: up to 25 pages of a Pages site, or a
+// container app's home page, in Chrome, with axe's wcag2a and wcag2aa rules.
+const MAX_PAGES = 25;
+
+async function runAccessibility() {
+  const passport = readPassport();
+  if (passport.problem) return { file: 'PASSPORT.yml', problems: [passport.problem], warnings: [] };
+  const skip = (why) => ({ file: 'PASSPORT.yml', problems: [], warnings: [`${why} The accessibility check (WCAG 2.0 AA) didn't run here; it runs again at the publish request.`] });
+
+  let site;
+  if (existsSync('.output/server/index.mjs') && passport.value.profile?.tier === 'container') {
+    site = await startServer('.output/server/index.mjs');
+    if (!site) return skip('The app didn\'t start in CI.');
+    site.pages = ['/'];
+  } else if (existsSync('.output/public')) {
+    site = await serveStatic('.output/public');
+    site.pages = listFiles('.output/public').filter((p) => p.endsWith('.html')).slice(0, MAX_PAGES)
+      .map((p) => `/${p}`.replace(/index\.html$/, ''));
+  } else {
+    return { file: 'PASSPORT.yml', problems: ['The build left no `.output` directory, so accessibility couldn\'t be checked. The paved road builds into `.output`; check the build script.'], warnings: [] };
+  }
+
+  try {
+    const { chromium } = await import('playwright-core');
+    let browser;
+    try {
+      browser = await chromium.launch({ channel: 'chrome' });
+    } catch {
+      return skip('No Chrome was available to load the pages.');
+    }
+    const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
+    const results = [];
+    try {
+      const page = await browser.newPage();
+      for (const path of site.pages) {
+        await page.goto(site.base + path, { waitUntil: 'load' });
+        await page.addScriptTag({ content: axeSource });
+        const result = await page.evaluate(() => window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } }));
+        results.push({ page: path, result });
+      }
+    } finally {
+      await browser.close();
+    }
+    return { file: 'PASSPORT.yml', ...explainAxe(results) };
+  } finally {
+    site.stop();
+  }
+}
+
+// Serves a directory of static files on a free local port.
+async function serveStatic(root) {
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };
+  const server = createServer((req, res) => {
+    let path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    if (path.endsWith('/')) path += 'index.html';
+    const file = join(root, path);
+    if (!file.startsWith(join(root)) || !existsSync(file)) { res.statusCode = 404; res.end(); return; }
+    res.setHeader('Content-Type', types[file.slice(file.lastIndexOf('.'))] ?? 'application/octet-stream');
+    res.end(readFileSync(file));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { base: `http://127.0.0.1:${server.address().port}`, stop: () => server.close() };
+}
+
+// Starts a built server and waits up to 20 seconds for it to answer.
+async function startServer(entry) {
+  const port = String(40000 + Math.floor(Math.random() * 20000));
+  const child = spawn(process.execPath, [entry], { env: { ...process.env, PORT: port, NITRO_PORT: port }, stdio: 'ignore' });
+  let exited = false;
+  child.on('exit', () => { exited = true; });
+  const base = `http://127.0.0.1:${port}`;
+  for (let waited = 0; waited < 20000 && !exited; waited += 250) {
+    try {
+      await fetch(base + '/');
+      return { base, stop: () => child.kill() };
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  child.kill();
+  return null;
+}
+
 // One package's registry facts: { name, exists, created }, or null when the
 // registry can't be reached.
 async function lookUpPackage(name) {
@@ -257,34 +348,23 @@ async function runIndexing() {
   };
 }
 
-// Starts the built server, waits up to 20 seconds for it to answer, and
-// returns its home page, headers, robots.txt and whether it has a sitemap.
-// Returns null when it never answers or exits first.
+// Fetches a running container app's home page, headers, robots.txt and
+// whether it has a sitemap, or null when it doesn't start.
 async function serve(entry) {
-  const port = String(40000 + Math.floor(Math.random() * 20000));
-  const server = spawn(process.execPath, [entry], { env: { ...process.env, PORT: port, NITRO_PORT: port }, stdio: 'ignore' });
-  let exited = false;
-  server.on('exit', () => { exited = true; });
-  const base = `http://127.0.0.1:${port}`;
+  const site = await startServer(entry);
+  if (!site) return null;
   try {
-    for (let waited = 0; waited < 20000 && !exited; waited += 250) {
-      try {
-        const home = await fetch(base + '/');
-        const robots = await fetch(base + '/robots.txt');
-        const sitemap = await fetch(base + '/sitemap.xml');
-        return {
-          html: await home.text(),
-          headers: Object.fromEntries(home.headers),
-          robotsTxt: robots.ok ? await robots.text() : null,
-          hasSitemap: sitemap.ok,
-        };
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-    }
-    return null;
+    const home = await fetch(site.base + '/');
+    const robots = await fetch(site.base + '/robots.txt');
+    const sitemap = await fetch(site.base + '/sitemap.xml');
+    return {
+      html: await home.text(),
+      headers: Object.fromEntries(home.headers),
+      robotsTxt: robots.ok ? await robots.text() : null,
+      hasSitemap: sitemap.ok,
+    };
   } finally {
-    server.kill();
+    site.stop();
   }
 }
 
@@ -304,8 +384,7 @@ function readPassport() {
 
 // Every file under the app's root, as repository paths, skipping
 // dependencies and git's own files.
-function listFiles(root) {
-  const skip = new Set(['.git', 'node_modules']);
+function listFiles(root, skip = new Set(['.git', 'node_modules'])) {
   const out = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -340,3 +419,15 @@ function report(title, file, problems, warnings) {
 function escape(text) {
   return text.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
 }
+
+// Runs last, once every constant above exists.
+const name = process.argv[2];
+const check = CHECKS[name];
+if (!check) {
+  console.error(`usage: node checks/cli.js <${Object.keys(CHECKS).join('|')}>`);
+  process.exit(2);
+}
+
+const { file, problems, warnings } = await check.run();
+report(check.title, file, problems, warnings);
+process.exitCode = problems.length > 0 ? 1 : 0;

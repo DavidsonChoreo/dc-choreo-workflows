@@ -287,3 +287,38 @@ test('unused: a knip report with an unused dependency warns', () => {
   assert.equal(result.warnings.length, 1);
   assert.match(result.warnings[0], /left-pad/);
 });
+
+test('code: a plain http:// call is annotated on its file and line', () => {
+  const result = run('code', { ...goodApp, 'server/api/slate.ts': "export default () => fetch('http://api.example.org');\n" });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /^::error file=server\/api\/slate\.ts,line=1,title=Code::/);
+});
+
+test('code: node_modules and the build output are not scanned', () => {
+  const result = run('code', {
+    ...goodApp,
+    'node_modules/x/index.js': "fetch('http://api.example.org')\n",
+    '.output/server/chunk.mjs': "fetch('http://api.example.org')\n",
+  });
+  assert.equal(result.status, 0, result.stdout);
+});
+
+test('code: open CORS fails', () => {
+  const result = run('code', { ...goodApp, 'server/middleware/cors.ts': "setHeader(event, 'Access-Control-Allow-Origin', '*')\n" });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /any website/);
+});
+
+const accessiblePage = '<!DOCTYPE html><html lang="en"><head><title>Library hours</title></head><body><main><h1>Library hours</h1><p>Open 8 to 5.</p></main></body></html>';
+
+test('accessibility: an accessible built Pages site passes', () => {
+  const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': accessiblePage });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('accessibility: an image without alt text fails', () => {
+  const page = accessiblePage.replace('<p>Open 8 to 5.</p>', '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">');
+  const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': page });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.errors.join('\n'), /WCAG 2\.0 AA/);
+});
