@@ -1,0 +1,54 @@
+# Proves the DavidsonChoreo runner's network path: egress through the hub's NAT gateway, the registry resolving to its
+# private endpoint and answering on 443, and Entra reachable. Run by hand after any change to the runner's network.
+#
+# This repository and its run logs are public, so the expected values live in repository variables and no step prints
+# them. Each step reports only pass or fail.
+#   CANARY_REGISTRY_HOST       the registry's login server
+#   CANARY_REGISTRY_DATA_HOST  the registry's data endpoint
+#   CANARY_EGRESS_IP           the NAT gateway's public IP
+name: runner-canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: The runner label to test
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  canary:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    env:
+      REGISTRY_HOST: ${{ vars.CANARY_REGISTRY_HOST }}
+      REGISTRY_DATA_HOST: ${{ vars.CANARY_REGISTRY_DATA_HOST }}
+      EGRESS_IP: ${{ vars.CANARY_EGRESS_IP }}
+    steps:
+      - name: Egress leaves through the hub's NAT gateway
+        run: |
+          ip=$(curl -fs --max-time 10 https://api.ipify.org) || { echo "fail: no egress"; exit 1; }
+          [ "$ip" = "$EGRESS_IP" ] && echo "pass" || { echo "fail: egress is not the NAT gateway"; exit 1; }
+
+      - name: The registry resolves to private addresses
+        run: |
+          for host in "$REGISTRY_HOST" "$REGISTRY_DATA_HOST"; do
+            ip=$(getent hosts "$host" | awk '{print $1}')
+            case "$ip" in
+              10.*) ;;
+              *) echo "fail: a registry name did not resolve to a private address"; exit 1 ;;
+            esac
+          done
+          echo "pass"
+
+      - name: The registry answers on 443
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$REGISTRY_HOST/v2/")
+          [ "$code" = "401" ] && echo "pass" || { echo "fail: expected 401, got $code"; exit 1; }
+
+      - name: Entra sign-in is reachable
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration)
+          [ "$code" = "200" ] && echo "pass" || { echo "fail: expected 200, got $code"; exit 1; }
