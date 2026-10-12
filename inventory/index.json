@@ -1,0 +1,44 @@
+{
+  "inventory": 1,
+  "generated": "2026-10-12T20:29:22.480Z",
+  "apps": [
+    {
+      "app": "AssemblyViz",
+      "repository": "DavidsonChoreo/AssemblyViz",
+      "lifecycle": "hosted",
+      "tier": "container",
+      "department": "Mathematics and Computer Science",
+      "business_owner": {
+        "name": "Raghu Ramanujan",
+        "email": "raramanujan@davidson.edu"
+      },
+      "app_owners": [
+        {
+          "name": "Nikita Aleksii",
+          "email": "nialeksii@davidson.edu"
+        },
+        {
+          "name": "Maria Fajardo",
+          "email": "mafajardo@davidson.edu"
+        },
+        {
+          "name": "Robby Votta",
+          "email": "rovotta@davidson.edu"
+        },
+        {
+          "name": "Yurdanur Yolcu",
+          "email": "yuyolcu@davidson.edu"
+        }
+      ],
+      "purpose": "A step-by-step visualizer for assembly code on the HYMN (8-bit) and RISC-V RV32I (32-bit) architectures, used to teach Computer Organization. Students write or load a program, then step through it and watch the registers and memory change. It replaces an unmaintained teaching tool from around 2005.\n",
+      "passport": "valid"
+    },
+    {
+      "app": "campus-occupancy",
+      "repository": "DavidsonChoreo/campus-occupancy",
+      "lifecycle": "incubating",
+      "purpose": "Building occupancy from Wi-Fi association data (XIQ), with calendar and Ad Astra overlays",
+      "passport": "missing"
+    }
+  ]
+}

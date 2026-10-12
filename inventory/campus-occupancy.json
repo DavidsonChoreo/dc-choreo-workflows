@@ -1,0 +1,10 @@
+{
+  "inventory": 1,
+  "app": {
+    "app": "campus-occupancy",
+    "repository": "DavidsonChoreo/campus-occupancy",
+    "lifecycle": "incubating",
+    "passport": "missing",
+    "purpose": "Building occupancy from Wi-Fi association data (XIQ), with calendar and Ad Astra overlays"
+  }
+}

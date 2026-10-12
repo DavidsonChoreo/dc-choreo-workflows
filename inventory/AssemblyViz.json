@@ -1,0 +1,36 @@
+{
+  "inventory": 1,
+  "app": {
+    "app": "AssemblyViz",
+    "repository": "DavidsonChoreo/AssemblyViz",
+    "lifecycle": "hosted",
+    "passport": "valid",
+    "tier": "container",
+    "department": "Mathematics and Computer Science",
+    "app_owners": [
+      {
+        "name": "Nikita Aleksii",
+        "email": "nialeksii@davidson.edu"
+      },
+      {
+        "name": "Maria Fajardo",
+        "email": "mafajardo@davidson.edu"
+      },
+      {
+        "name": "Robby Votta",
+        "email": "rovotta@davidson.edu"
+      },
+      {
+        "name": "Yurdanur Yolcu",
+        "email": "yuyolcu@davidson.edu"
+      }
+    ],
+    "business_owner": {
+      "name": "Raghu Ramanujan",
+      "email": "raramanujan@davidson.edu"
+    },
+    "purpose": "A step-by-step visualizer for assembly code on the HYMN (8-bit) and RISC-V RV32I (32-bit) architectures, used to teach Computer Organization. Students write or load a program, then step through it and watch the registers and memory change. It replaces an unmaintained teaching tool from around 2005.\n",
+    "created": "2026-01-30",
+    "review": "2027-08-28"
+  }
+}
