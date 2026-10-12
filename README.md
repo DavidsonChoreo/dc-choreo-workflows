@@ -25,6 +25,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
 | `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
+| `factory/` and `.github/workflows/app-factory.yml` | The app factory: invites a builder and, given a repository name, creates their private incubating repository with its properties and the PE team's access |
 | `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
@@ -42,6 +43,15 @@ Each schema's `$id` is its address. A published version never changes, so these 
 - Passport, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/passport/v1.schema.json`
 - Report, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json`
 - Official sites, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/official-sites/v1.schema.json`
+
+## The app factory
+
+PE runs **app-factory** (Actions → app-factory → Run workflow) from a workspace ticket, with the builder's GitHub username, their davidson.edu email, and optionally a new repository's name. It:
+
+1. invites the builder to DavidsonChoreo, unless they're already a member or invited;
+2. with a repository name: creates it private, sets `lifecycle: incubating` on a new repository, adds the email to `product-owner-email`'s contacts, and gives `platform-engineering` `maintain`.
+
+Each step is skipped when it's already done, so rerunning is safe, and an existing repository's lifecycle is never changed. It uses the `davidson-choreo-factory` GitHub App (Members, Administration and Custom properties: write; no contents), whose ID is the `CHOREO_FACTORY_APP_ID` variable and whose key is the `CHOREO_FACTORY_PRIVATE_KEY` secret. Builders may also create repositories themselves; the publish request's workspace check catches what they skip.
 
 ## The app inventory
 

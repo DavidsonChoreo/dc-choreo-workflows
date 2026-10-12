@@ -1,0 +1,52 @@
+# The app factory: invites a builder to DavidsonChoreo and, given a
+# repository name, creates their private incubating repository with its
+# properties and the PE team's access. Run by PE from a workspace ticket for
+# now; later by an MCP tool the plugin calls, signed in as the builder.
+# Design: projects/active/choreo/workspace-design.md in platform-engineering.
+name: app-factory
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_username:
+        description: The builder's GitHub username
+        required: true
+        type: string
+      davidson_email:
+        description: The builder's davidson.edu email, confirmed by PE
+        required: true
+        type: string
+      repository:
+        description: A new repository to create, lowercase with hyphens (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-factory-${{ inputs.github_username }}
+  cancel-in-progress: false
+
+jobs:
+  factory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get a factory token
+        id: factory
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.CHOREO_FACTORY_APP_ID }}
+          private-key: ${{ secrets.CHOREO_FACTORY_PRIVATE_KEY }}
+          owner: DavidsonChoreo
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Run the factory
+        env:
+          GITHUB_TOKEN: ${{ steps.factory.outputs.token }}
+          INPUT_GITHUB_USERNAME: ${{ inputs.github_username }}
+          INPUT_DAVIDSON_EMAIL: ${{ inputs.davidson_email }}
+          INPUT_REPOSITORY: ${{ inputs.repository }}
+        run: node factory/run.js
