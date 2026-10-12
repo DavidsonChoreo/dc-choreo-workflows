@@ -1,7 +1,7 @@
-# The workflow the lifecycle: hosted ruleset requires. A ruleset can only
-# require a workflow that runs on pull requests, so this file exists to call
-# checks.yml. A builder can't remove it from a hosted app the way they could
-# remove the stub.
+# The workflow the lifecycle: hosted ruleset requires on every pull request
+# into a hosted app's main. A ruleset can only require a workflow that runs on
+# pull requests, so this file exists to call checks.yml, and a builder can't
+# remove it.
 name: choreo required
 
 on:

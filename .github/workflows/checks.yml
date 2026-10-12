@@ -1,10 +1,24 @@
-# The Choreo checks, called by every app repository: by its stub on pushes to
-# main and on pull requests, and by required.yml on hosted apps' pull requests.
+# The Choreo checks. Two callers: required.yml, on a hosted app's pull
+# requests, and the publish request, which checks a private incubating app
+# from this repository. Incubating apps run nothing of their own.
 # Each check is its own job, so each shows as its own line on a pull request.
 name: choreo checks
 
 on:
   workflow_call:
+    inputs:
+      repository:
+        description: The app repository to check, as owner/name. The calling repository by default.
+        type: string
+        default: ''
+      ref:
+        description: The commit, branch or tag to check. The triggering commit by default.
+        type: string
+        default: ''
+    secrets:
+      repository_token:
+        description: A token that can read the app repository. Needed when the app is private and not the caller.
+        required: false
 
 permissions:
   contents: read
@@ -16,5 +30,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
+          token: ${{ secrets.repository_token || github.token }}
           persist-credentials: false
       - uses: DavidsonChoreo/dc-choreo-workflows/actions/passport@v1
