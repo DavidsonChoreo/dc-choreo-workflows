@@ -1,0 +1,36 @@
+{
+  "report": 1,
+  "app": "academic-deadlines",
+  "passport_sha": "04f6f0c15961642a8ceb5bd29e626ba5fb293342ca809717a2fe42c091eb8558",
+  "commit": "0000000000000000000000000000000000000000",
+  "run_url": "https://github.com/DavidsonChoreo/academic-deadlines/actions/runs/1",
+  "summary": "A campus app showing add, drop and withdrawal deadlines per section, with Registrar's Office exceptions. It holds Internal data and writes only its own records. One flag for Security: an exception form posts free text that is rendered without escaping.",
+  "checks": [
+    { "id": "passport-valid", "result": "pass", "evidence": "PASSPORT.yml validates against passport schema version 1." },
+    { "id": "license-matches", "result": "pass", "evidence": "LICENSE is Apache-2.0, matching the passport." },
+    { "id": "noindex-present", "result": "pass", "evidence": "Every generated page carries a robots noindex meta tag." }
+  ],
+  "sections": {
+    "security": {
+      "controls": [
+        { "id": "example-waf-and-sign-in", "met_by": "platform", "status": "met", "evidence": "Entra sign-in is enforced by the container app module." },
+        { "id": "example-server-side-authz", "met_by": "flag", "status": "met", "evidence": "server/api/exceptions.post.ts calls the layer's role check before writing." },
+        { "id": "example-role-separation", "met_by": "attested", "status": "pending", "evidence": "The builder confirms it on the ready-call form." }
+      ],
+      "flags": [
+        { "id": "unescaped-input", "severity": "medium", "detail": "Exception notes are rendered with v-html.", "evidence": "components/ExceptionNote.vue, line 12." }
+      ],
+      "recommendation": "review"
+    },
+    "comms": {
+      "flags": [],
+      "screenshots": ["https://github.com/DavidsonChoreo/academic-deadlines/actions/runs/1/artifacts/1"],
+      "recommendation": "approve"
+    },
+    "platform": {
+      "flags": [],
+      "recommendation": "approve"
+    }
+  },
+  "recommendation": "review"
+}
