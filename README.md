@@ -23,6 +23,8 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
+| `rubrics/security.yml` | What the assessor looks for: 19 items, each with the flag id it raises and the controls it judges. A test keeps every `flag` control covered |
+| `assessor/` and `.github/workflows/assess.yml` | The assessor: runs every check, has Claude (`claude-opus-5-5`, effort low) judge the code against the rubric, and assembles `report.json`, which must validate against the report schema |
 | `control-map.yml` | How each of the 140 items in Information Security's review standard is met: by the platform, a check, an assessor flag, a builder attestation, or a pipeline step. The assessor starts the report's security section from it. Readable version: `docs/control-map.md` |
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
@@ -45,6 +47,16 @@ Each schema's `$id` is its address. A published version never changes, so these 
 - Report, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json`
 - Control map, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/control-map/v1.schema.json`
 - Official sites, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/official-sites/v1.schema.json`
+
+## The assessor
+
+`assess` runs at the publish request, or by hand (Actions → assess → Run workflow, with the app's `owner/name`). It runs every check against the app, saving each result, then sends the app's passport, check results and source to Claude with the security rubric and the control map. **Claude returns judgments only**: flags with file-and-line evidence, and a met or not-met decision for each `flag` control. Code then assembles `report.json`:
+
+- `platform` controls are met, `check` controls follow the checks they name, `attested` ones are pending until the ready call, and `flag` ones take Claude's decision, or stay pending if it made none;
+- security says block on a high flag or a failed check; a control Claude marks not met takes the severity of its highest flag (high blocks, medium or no flag asks for review, low stays in the report without holding the app up); a medium flag or a pending check asks for review; otherwise approve. Comms and PE say review until their rubrics exist;
+- the overall recommendation follows the report schema's rule, and the report must validate against the schema or nothing is written.
+
+The model, `claude-opus-5-5` at effort `low`, is named once, in `assessor/assess.js`. The rubric and control map form a cached prompt prefix shared by every app on a tier. A safety decline falls back to another model server-side; if every model declines, the report says so and asks for a human review. The report is uploaded as the run's `report` artifact. It uses the `ANTHROPIC_API_KEY` organization secret, readable only by this repository, and the reader app to check out private apps. It checks out this repository at its own commit and uses the actions by local path, so call it only from within this repository.
 
 ## The app inventory
 
