@@ -75,10 +75,10 @@ test('an unknown field is called out by name', () => {
 
 test('an email outside davidson.edu is explained', () => {
   const result = checkPassport(
-    variant('incident_contact: { name: Dana Example, email: daexample@davidson.edu }',
-      'incident_contact: { name: Dana Example, email: dana@gmail.com }'),
+    variant('business_owner: { name: Morgan Example, email: moexample@davidson.edu }',
+      'business_owner: { name: Morgan Example, email: morgan@gmail.com }'),
   );
-  assert.deepEqual(fieldsOf(result), ['incident_contact.email']);
+  assert.deepEqual(fieldsOf(result), ['business_owner.email']);
   assert.match(result.problems[0].message, /davidson\.edu address/);
 });
 
