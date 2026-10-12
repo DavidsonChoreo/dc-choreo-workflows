@@ -1,5 +1,5 @@
 // The code checks (pipeline.md, deterministic checks): plain http:// calls,
-// CORS open to any website, and WCAG 2.0 AA accessibility, which Davidson is
+// CORS open to any website, and WCAG 2.1 AA accessibility, which Davidson is
 // bound to and which blocks (decision 36).
 
 // http:// addresses that aren't calls: the machine itself, and the XML and
@@ -51,7 +51,7 @@ export function scanCors(files) {
 }
 
 // `pages` is { page, result } per page, where result is axe's, run with the
-// WCAG 2.0 A and AA rules. Every violation fails; what axe can't decide alone
+// WCAG 2.0 and 2.1 A and AA rules. Every violation fails; what axe can't decide alone
 // is one warning for a person to check.
 export function explainAxe(pages) {
   const byRule = new Map();
@@ -67,7 +67,7 @@ export function explainAxe(pages) {
   }
 
   const problems = [...byRule.values()].map(({ violation, pages: where, elements }) =>
-    `Accessibility (WCAG 2.0 AA): ${violation.help}. Found on ${elements} ${elements === 1 ? 'element' : 'elements'}, on ${where.map((p) => `\`${p}\``).join(', ')}. How to fix it: ${violation.helpUrl}`);
+    `Accessibility (WCAG 2.1 AA): ${violation.help}. Found on ${elements} ${elements === 1 ? 'element' : 'elements'}, on ${where.map((p) => `\`${p}\``).join(', ')}. How to fix it: ${violation.helpUrl}`);
   const warnings = undecided.size > 0
     ? [`Some accessibility rules need a person to check, because a tool can't decide them alone: ${[...undecided].join(', ')}. Check these by hand before publishing.`]
     : [];

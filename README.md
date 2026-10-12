@@ -18,7 +18,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/secrets.js` | Explains a gitleaks scan of the full history: each secret, its file, line and first commit, never its value or author |
 | `checks/audit.js` | Explains `npm audit`: high and critical vulnerabilities fail, moderate and low warn |
 | `checks/dependencies.js` | New dependencies exist on the registry (and warn when brand new), no workflow auto-merges, runtimes aren't past end of life (endoflife.date), and unused dependencies warn (knip) |
-| `checks/code.js` | No plain `http://` calls and no CORS open to any website in source and config; and axe's WCAG 2.0 A and AA rules on the built pages, where any violation fails (pipeline.md decision 36) |
+| `checks/code.js` | No plain `http://` calls and no CORS open to any website in source and config; and axe's WCAG 2.1 A and AA rules on the built pages, where any violation fails (pipeline.md decision 36) |
 | `checks/workspace.js` | At the publish request only: the repository is in DavidsonChoreo, the PE team has write, and `product-owner-email` includes the passport's business owner. PE completes anything missing |
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
@@ -29,7 +29,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
-| `actions/build/` | For every app: the dependency, runtime and code checks. For paved-road apps: `npm ci`, the audit, unused dependencies, `npm run build`, then indexing and accessibility (WCAG 2.0 AA) on the built site, in the runner's Chrome. Other stacks skip the build with a warning |
+| `actions/build/` | For every app: the dependency, runtime and code checks. For paved-road apps: `npm ci`, the audit, unused dependencies, `npm run build`, then indexing and accessibility (WCAG 2.1 AA) on the built site, in the runner's Chrome. Other stacks skip the build with a warning |
 | `test/` | Tests for the checks, run with `npm test`, `test/fixtures/app`, a sample container app that passes the file checks, and `test/fixtures/pages-app`, a sample Pages site that builds and passes indexing |
 | `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
 | `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |

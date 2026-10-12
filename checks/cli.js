@@ -244,14 +244,14 @@ async function runWorkspace() {
   };
 }
 
-// WCAG 2.0 AA on the built site: up to 25 pages of a Pages site, or a
-// container app's home page, in Chrome, with axe's wcag2a and wcag2aa rules.
+// WCAG 2.1 AA on the built site: up to 25 pages of a Pages site, or a
+// container app's home page, in Chrome, with axe's WCAG 2.0 and 2.1 A and AA rules.
 const MAX_PAGES = 25;
 
 async function runAccessibility() {
   const passport = readPassport();
   if (passport.problem) return { file: 'PASSPORT.yml', problems: [passport.problem], warnings: [] };
-  const skip = (why) => ({ file: 'PASSPORT.yml', problems: [], warnings: [`${why} The accessibility check (WCAG 2.0 AA) didn't run here; it runs again at the publish request.`] });
+  const skip = (why) => ({ file: 'PASSPORT.yml', problems: [], warnings: [`${why} The accessibility check (WCAG 2.1 AA) didn't run here; it runs again at the publish request.`] });
 
   let site;
   if (existsSync('.output/server/index.mjs') && passport.value.profile?.tier === 'container') {
@@ -281,7 +281,7 @@ async function runAccessibility() {
       for (const path of site.pages) {
         await page.goto(site.base + path, { waitUntil: 'load' });
         await page.addScriptTag({ content: axeSource });
-        const result = await page.evaluate(() => window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } }));
+        const result = await page.evaluate(() => window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }));
         results.push({ page: path, result });
       }
     } finally {
