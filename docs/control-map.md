@@ -14,13 +14,12 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | attested | The builder confirms it at the ready call | 12 | 18 |
 | n/a | Doesn't apply to the tier | 56 | 1 |
 
-## Where a Choreo decision takes precedence or conflicts
+## Where a Choreo decision takes precedence
 
 - **4.7** WAF and Davidson SSO in front of internet-facing apps: Decision of 2026-10-12 on #85 takes precedence: Public and Internal apps have no WAF; every Restricted and Confidential app sits behind it, including one reachable only from campus and VPN.
 - **4.9** Phishing-resistant MFA above Public data: Decision of 2026-10-12 on #85 takes precedence: Choreo apps use Davidson SSO with Duo; the phishing-resistant requirement doesn't apply, and PE is raising it with InfoSec.
 - **5.4.1** WAF and SSO actually in the traffic path; origin not directly reachable: As 4.7.
-- **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer: Decision 25 (2026-10-12) has builders merge their own pull requests once the checks pass, and deploys run from `main` with no required reviewer. This item's required reviewer conflicts with it; to raise with InfoSec.
-- **5.10.1** WCAG 2.1 Level AA: Decision 36 (2026-10-12) sets WCAG 2.0 AA, which Davidson is bound to; this item says 2.1 AA. To reconcile with InfoSec.
+- **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer: Choreo's decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The checks are the gate, not a second person.
 
 ## Not fully met yet
 
@@ -131,14 +130,14 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **5.8.8** Subscribed to security advisories for dependencies | platform | platform | Dependabot alerts on every hosted repository; the report pulls in open alerts (#35). |
 | **5.9.1** The build agent didn't hold dev and prod credentials together | attested | attested | `AGENTS.md` rule 6: the agent never holds production credentials. The builder confirms it at the ready call. |
 | **5.9.2** Destructive actions needed human approval during the build | attested | attested | `AGENTS.md` rule 7: schema changes, data deletion and deploys need the builder's explicit approval. |
-| **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer | platform | platform | Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from `main`. **Precedence:** Decision 25 (2026-10-12) has builders merge their own pull requests once the checks pass, and deploys run from `main` with no required reviewer. This item's required reviewer conflicts with it; to raise with InfoSec. |
+| **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer | platform | platform | Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from `main` after a merge that passed every required check. **Precedence:** Choreo's decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The checks are the gate, not a second person. |
 | **5.9.4** No Davidson data used to train any AI model | attested | attested | A ready-call attestation; Claude Enterprise doesn't train on customer data. |
 | **5.9.5** AI vendor configured not to train; only sanitized data in public AI tools | attested | attested | A ready-call attestation: only sanitized data in AI tools other than Claude Enterprise (#89). |
-| **5.10.1** WCAG 2.1 Level AA | check | check | The accessibility check runs axe's WCAG 2.0 A and AA rules on the built pages; any violation fails (decision 36). **Precedence:** Decision 36 (2026-10-12) sets WCAG 2.0 AA, which Davidson is bound to; this item says 2.1 AA. To reconcile with InfoSec. |
+| **5.10.1** WCAG 2.1 Level AA | check | check | The accessibility check runs axe's WCAG 2.1 A and AA rules on the built pages; any violation fails (pipeline.md decision 36). |
 | **5.10.2** Semantic HTML; everything works by keyboard | attested | attested | A ready-call attestation: a manual keyboard and screen-reader pass (#89); axe catches part of it automatically. |
 | **5.10.3** Color contrast checked with a tool | check | check | axe's color-contrast rule, in the accessibility check. |
 | **5.10.4** Text alternatives for non-text content | check | check | axe's image-alt and related rules, in the accessibility check. |
-| **5.10.5** Automated accessibility testing in CI | check | check | The accessibility check runs axe in Chrome on every pull request and at the publish request. |
+| **5.10.5** Automated accessibility testing in CI | check | check | The accessibility check runs axe in Chrome on every pull request and at the publish request, against WCAG 2.1 AA. |
 | **5.10.6** Manual screen-reader and keyboard testing | attested | attested | As 5.10.2. |
 | **5.10.7** A VPAT for any vendor UI or embed | attested | attested | The builder confirms one at the ready call when the app embeds a vendor's interface. |
 | **5.11.1** Every endpoint touching Davidson data requires authentication | n/a | platform | The platform's authentication sits in front of every route of a container app, so no endpoint is reachable unauthenticated. |

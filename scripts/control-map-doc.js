@@ -37,7 +37,7 @@ export function renderControlMap(map) {
   ];
 
   const precedence = map.controls.filter((c) => c.precedence);
-  lines.push('## Where a Choreo decision takes precedence or conflicts', '');
+  lines.push('## Where a Choreo decision takes precedence', '');
   for (const c of precedence) lines.push(`- **${c.id}** ${cell(c.summary)}: ${cell(c.precedence)}`);
   lines.push('');
 

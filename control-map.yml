@@ -626,9 +626,10 @@ controls:
     pages: platform
     container: platform
   how: Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from
-    `main`.
-  precedence: Decision 25 (2026-10-12) has builders merge their own pull requests once the checks pass, and deploys
-    run from `main` with no required reviewer. This item's required reviewer conflicts with it; to raise with InfoSec.
+    `main` after a merge that passed every required check.
+  precedence: 'Choreo''s decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge
+    their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The
+    checks are the gate, not a second person.'
 - id: 5.9.4
   summary: No Davidson data used to train any AI model
   scope: app
@@ -649,10 +650,8 @@ controls:
   met_by:
     pages: check
     container: check
-  how: The accessibility check runs axe's WCAG 2.0 A and AA rules on the built pages; any violation fails (decision
-    36).
-  precedence: Decision 36 (2026-10-12) sets WCAG 2.0 AA, which Davidson is bound to; this item says 2.1 AA. To reconcile
-    with InfoSec.
+  how: The accessibility check runs axe's WCAG 2.1 A and AA rules on the built pages; any violation fails (pipeline.md
+    decision 36).
 - id: 5.10.2
   summary: Semantic HTML; everything works by keyboard
   scope: app
@@ -680,7 +679,8 @@ controls:
   met_by:
     pages: check
     container: check
-  how: The accessibility check runs axe in Chrome on every pull request and at the publish request.
+  how: The accessibility check runs axe in Chrome on every pull request and at the publish request, against WCAG
+    2.1 AA.
 - id: 5.10.6
   summary: Manual screen-reader and keyboard testing
   scope: app
