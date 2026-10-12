@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assembleReport } from '../assessor/report.js';
 import { loadControlMap } from '../checks/control-map.js';
+import { readFileSync } from 'node:fs';
+import { parse } from 'yaml';
+
+const rubric = parse(readFileSync(new URL('../rubrics/security.yml', import.meta.url), 'utf8'));
 
 const map = loadControlMap();
 const ALL_CHECKS = ['passport', 'license', 'tier', 'files', 'secrets', 'dependencies', 'code', 'build-plan', 'audit', 'unused', 'build', 'indexing', 'accessibility'];
@@ -14,6 +18,7 @@ const base = {
   runUrl: 'https://github.com/DavidsonChoreo/dc-choreo-workflows/actions/runs/1',
   tier: 'container',
   map,
+  rubric,
   checkResults: passing,
 };
 
@@ -74,11 +79,38 @@ test('a high-severity flag blocks; a medium one asks for review; a low one does 
   assert.equal(at('low'), 'approve');
 });
 
-test('a flag control judged not met blocks', () => {
+// A flag control Claude marks not met takes the severity of the rubric
+// item's flag: high blocks, medium (or no flag at all) asks for review, and
+// low leaves the decision to the reviewers without holding the app up.
+function notMet(id, flags) {
   const judgments = cleanJudgments();
-  judgments.controls = judgments.controls.map((c) => (c.id === '4.3' ? { ...c, status: 'not-met', evidence: 'server/api/x.post.ts has no role check.' } : c));
-  const report = assembleReport({ ...base, judgments });
+  judgments.controls = judgments.controls.map((c) => (c.id === id ? { ...c, status: 'not-met', evidence: 'The gap is here.' } : c));
+  judgments.flags = flags;
+  return assembleReport({ ...base, judgments });
+}
+const flagged = (id, severity) => ({ id, severity, detail: 'What is wrong and how to fix it.', evidence: 'some/file.ts, line 3.' });
+
+test('a flag control not met with a high flag blocks', () => {
+  const report = notMet('4.3', [flagged('client-side-authorization', 'high')]);
   assert.equal(control(report, '4.3').status, 'not-met');
+  assert.equal(report.sections.security.recommendation, 'block');
+});
+
+test('a flag control not met with a medium flag, or with no flag, asks for review', () => {
+  assert.equal(notMet('5.4.3', [flagged('rate-limiting', 'medium')]).sections.security.recommendation, 'review');
+  assert.equal(notMet('4.3', []).sections.security.recommendation, 'review');
+});
+
+test('a flag control not met with only a low flag does not hold the app up', () => {
+  const report = notMet('5.11.11', [flagged('api-review', 'low')]);
+  assert.equal(control(report, '5.11.11').status, 'not-met');
+  assert.equal(report.sections.security.flags.length, 1);
+  assert.equal(report.sections.security.recommendation, 'approve');
+});
+
+test('the highest flag on a control decides it', () => {
+  // 5.4.6 is judged by unapproved-service; a high and a low flag on it means block.
+  const report = notMet('5.4.6', [flagged('unapproved-service', 'low'), flagged('unapproved-service', 'high')]);
   assert.equal(report.sections.security.recommendation, 'block');
 });
 

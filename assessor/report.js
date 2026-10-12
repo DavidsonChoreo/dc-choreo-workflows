@@ -15,7 +15,7 @@ const validate = ajv.compile(reportSchema);
 
 // checkResults: { check, problems, warnings } per check, or { check, skipped, reason }.
 // judgments: { summary, flags, controls: [{ id, status, evidence }] }, or { refused: true }.
-export function assembleReport({ app, passportSha, commit, runUrl, tier, map, checkResults, judgments }) {
+export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments }) {
   const results = new Map(checkResults.map((r) => [r.check, r]));
   const checks = checkResults.map(reportCheck);
   const how = new Map(map.controls.map((c) => [c.id, c]));
@@ -41,7 +41,7 @@ export function assembleReport({ app, passportSha, commit, runUrl, tier, map, ch
   });
 
   const flags = judgments.refused ? [] : judgments.flags ?? [];
-  const security = { controls, flags, recommendation: securityRecommendation(controls, flags) };
+  const security = { controls, flags, recommendation: securityRecommendation(controls, flags, rubric) };
   // Comms and PE rubrics aren't built yet, so a person reviews those sections.
   const comms = { flags: [], screenshots: [], recommendation: 'review' };
   const platform = { flags: [], recommendation: 'review' };
@@ -86,11 +86,29 @@ function fromChecks(names, results) {
   return { status: 'met', evidence: `Passed: the ${names.join(' and ')} check.` };
 }
 
-// Block on a high flag or any control not met; review on a medium flag or a
-// pending control the builder doesn't attest to; otherwise approve.
-function securityRecommendation(controls, flags) {
-  if (flags.some((f) => f.severity === 'high') || controls.some((c) => c.status === 'not-met')) return 'block';
-  if (flags.some((f) => f.severity === 'medium') || controls.some((c) => c.status === 'pending' && c.met_by !== 'attested')) return 'review';
+// Block on a high flag or a control a failed check left not met. A control
+// Claude marks not met takes the severity of the highest flag raised by a
+// rubric item that judges it: high blocks, medium asks for review, low stays
+// in the report for the reviewers without holding the app up, and none at
+// all asks for review. Review too on a medium flag or a pending check.
+// Attested items don't count: the ready-call form collects them.
+const RANK = { low: 1, medium: 2, high: 3 };
+
+function securityRecommendation(controls, flags, rubric) {
+  // The highest severity among flags from the rubric items that judge `id`, or null.
+  const severityOf = (id) => {
+    const items = new Set(rubric.items.filter((i) => i.controls.includes(id)).map((i) => i.id));
+    const severities = flags.filter((f) => items.has(f.id)).map((f) => f.severity);
+    return severities.sort((a, b) => RANK[b] - RANK[a])[0] ?? null;
+  };
+  const judgedNotMet = controls.filter((c) => c.met_by === 'flag' && c.status === 'not-met').map((c) => severityOf(c.id));
+
+  if (flags.some((f) => f.severity === 'high')) return 'block';
+  if (controls.some((c) => c.met_by === 'check' && c.status === 'not-met')) return 'block';
+  if (judgedNotMet.some((s) => s === 'high')) return 'block';
+  if (flags.some((f) => f.severity === 'medium')) return 'review';
+  if (judgedNotMet.some((s) => s === null || s === 'medium')) return 'review';
+  if (controls.some((c) => c.status === 'pending' && c.met_by !== 'attested')) return 'review';
   return 'approve';
 }
 

@@ -57,7 +57,7 @@ const report = assembleReport({
   passportSha: createHash('sha256').update(passportBytes).digest('hex'),
   commit: execFileSync('git', ['-C', appDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
-  tier, map, checkResults, judgments,
+  tier, map, rubric, checkResults, judgments,
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 summarize(report);
