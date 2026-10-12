@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json",
+  "title": "Choreo assessor report, version 1",
+  "description": "report.json, written by the assessor for the ready call. Information Security, College Communications and Platform Engineering each approve from their own section. The overall recommendation is computed, never judged: a failed check or a section saying block means block, a section saying review means at least review, and otherwise it is approve.",
+  "type": "object",
+  "required": [
+    "report",
+    "app",
+    "passport_sha",
+    "commit",
+    "run_url",
+    "summary",
+    "checks",
+    "sections",
+    "recommendation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "report": {
+      "description": "Report format version.",
+      "const": 1
+    },
+    "app": {
+      "description": "The app's name, matching its passport.",
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "passport_sha": {
+      "description": "SHA-256 of PASSPORT.yml's bytes at the assessed commit. Once approved, the deploy workflow compares it with the repository's approved-passport-sha.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commit": {
+      "description": "The commit the assessor read.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "run_url": {
+      "description": "The workflow run that wrote this report.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "summary": {
+      "description": "One paragraph on what the app is and what the reviewers should know.",
+      "type": "string",
+      "minLength": 1
+    },
+    "checks": {
+      "description": "The deterministic checks and their results.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "sections": {
+      "description": "One section per approver.",
+      "type": "object",
+      "required": ["security", "comms", "platform"],
+      "additionalProperties": false,
+      "properties": {
+        "security": {
+          "description": "Information Security's section: every item in its review standard, plus flags.",
+          "type": "object",
+          "required": ["controls", "flags", "recommendation"],
+          "additionalProperties": false,
+          "properties": {
+            "controls": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/control" }
+            },
+            "flags": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/flag" }
+            },
+            "recommendation": { "$ref": "#/$defs/recommendation" }
+          }
+        },
+        "comms": {
+          "description": "College Communications' section: flags and links to screenshots of the app.",
+          "type": "object",
+          "required": ["flags", "screenshots", "recommendation"],
+          "additionalProperties": false,
+          "properties": {
+            "flags": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/flag" }
+            },
+            "screenshots": {
+              "type": "array",
+              "items": { "type": "string", "format": "uri", "pattern": "^https://" }
+            },
+            "recommendation": { "$ref": "#/$defs/recommendation" }
+          }
+        },
+        "platform": {
+          "description": "Platform Engineering's section: hosting fit, cost, and whether the app belongs on the platform.",
+          "type": "object",
+          "required": ["flags", "recommendation"],
+          "additionalProperties": false,
+          "properties": {
+            "flags": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/flag" }
+            },
+            "recommendation": { "$ref": "#/$defs/recommendation" }
+          }
+        }
+      }
+    },
+    "recommendation": {
+      "description": "The overall recommendation, computed from the checks and the sections.",
+      "$ref": "#/$defs/recommendation"
+    }
+  },
+  "allOf": [
+    {
+      "description": "A failed check means block.",
+      "if": {
+        "required": ["checks"],
+        "properties": {
+          "checks": {
+            "contains": {
+              "required": ["result"],
+              "properties": { "result": { "const": "fail" } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": { "recommendation": { "const": "block" } }
+      }
+    },
+    {
+      "description": "A section saying block means block.",
+      "if": {
+        "required": ["sections"],
+        "properties": {
+          "sections": {
+            "anyOf": [
+              { "required": ["security"], "properties": { "security": { "required": ["recommendation"], "properties": { "recommendation": { "const": "block" } } } } },
+              { "required": ["comms"], "properties": { "comms": { "required": ["recommendation"], "properties": { "recommendation": { "const": "block" } } } } },
+              { "required": ["platform"], "properties": { "platform": { "required": ["recommendation"], "properties": { "recommendation": { "const": "block" } } } } }
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": { "recommendation": { "const": "block" } }
+      }
+    },
+    {
+      "description": "A section saying review means at least review.",
+      "if": {
+        "required": ["sections"],
+        "properties": {
+          "sections": {
+            "anyOf": [
+              { "required": ["security"], "properties": { "security": { "required": ["recommendation"], "properties": { "recommendation": { "const": "review" } } } } },
+              { "required": ["comms"], "properties": { "comms": { "required": ["recommendation"], "properties": { "recommendation": { "const": "review" } } } } },
+              { "required": ["platform"], "properties": { "platform": { "required": ["recommendation"], "properties": { "recommendation": { "const": "review" } } } } }
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": { "recommendation": { "enum": ["review", "block"] } }
+      }
+    }
+  ],
+  "$defs": {
+    "recommendation": {
+      "enum": ["approve", "review", "block"]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "check": {
+      "type": "object",
+      "required": ["id", "result", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "result": { "enum": ["pass", "fail", "skipped"] },
+        "evidence": { "type": "string" }
+      }
+    },
+    "control": {
+      "description": "One item in Information Security's review standard and how this app meets it.",
+      "type": "object",
+      "required": ["id", "met_by", "status", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The item's number in the standard.",
+          "$ref": "#/$defs/id"
+        },
+        "met_by": {
+          "description": "platform: inherited from the hosting module or the layer. check: a blocking CI job. flag: an assessor judgment with evidence. attested: the builder confirms it at the ready call. n/a: doesn't apply to this tier.",
+          "enum": ["platform", "check", "flag", "attested", "n/a"]
+        },
+        "status": {
+          "description": "pending is for an attested item the builder hasn't confirmed yet.",
+          "enum": ["met", "not-met", "pending", "n/a"]
+        },
+        "evidence": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["met_by"], "properties": { "met_by": { "const": "n/a" } } },
+          "then": { "properties": { "status": { "const": "n/a" } } }
+        },
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "n/a" } } },
+          "then": { "properties": { "met_by": { "const": "n/a" } } }
+        }
+      ]
+    },
+    "flag": {
+      "type": "object",
+      "required": ["id", "severity", "detail", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "severity": { "enum": ["low", "medium", "high"] },
+        "detail": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "string" }
+      }
+    }
+  }
+}

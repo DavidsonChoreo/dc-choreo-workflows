@@ -1,0 +1,42 @@
+# A public GitHub Pages site holding Public data only.
+passport: 1
+app: library-hours
+purpose: >
+  A one-page calendar of the library's opening hours for the public, including
+  holiday and exam-week changes.
+app_owners:
+  - { name: Riley Example, email: riexample@davidson.edu }
+business_owner: { name: Jordan Example, email: joexample@davidson.edu }
+incident_contact: { name: Riley Example, email: riexample@davidson.edu }
+department: Library
+custody: >
+  If the app owner leaves, the library's head of access services names a
+  successor within 30 days. Otherwise the site sunsets at the next review date.
+created: "2026-10-12"
+review: "2027-10-12"
+profile:
+  door: look
+  driver: person
+  audience: public
+  clearance: true
+  data_classification: public
+  source: none
+  writes: none
+  consumption: web
+  tier: pages
+audience_scope: external
+brand: branded
+indexable: true
+custom_domain: null
+license: Apache-2.0
+road: paved
+stack: nuxt
+scaffolded_with: "@davidson/create-choreo-app@1.0.0"
+build_environment: host-node
+built_with: davidson-choreo@1.0.0
+risk_tier: low
+regulations: []
+roles: []
+integrations: []
+llm: null
+retention: []
