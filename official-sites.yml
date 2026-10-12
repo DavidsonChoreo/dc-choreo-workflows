@@ -1,0 +1,62 @@
+# The websites College Communications authorizes. The overlap check compares
+# a new app's purpose against these, and a Choreo app shouldn't duplicate one.
+# Platform Engineering keeps this file in step with the source page; College
+# Communications' write access is a later enhancement.
+official_sites: 1
+source: https://marketing-toolbox.dcreate.domains/website-social/authorized-college-websites/
+as_of: "2026-10-12"
+
+sites:
+  - name: davidson.edu
+    url: https://www.davidson.edu/
+    purpose: The main college website. Every college-wide office, service and academic department has a presence here.
+    owner: College Communications
+
+  - name: WildcatSync
+    url: https://wildcatsync.davidson.edu/
+    purpose: Student organizations and programs
+    owner: Student Activities; Center for Civic Engagement
+
+  - name: Academic Catalog
+    url: https://catalog.davidson.edu/
+    purpose: Official course information, academic calendar and regulations
+    owner: Registrar's Office
+
+  - name: Course schedule
+    url: https://course-schedule.davidson.edu/
+    purpose: Courses offered by semester
+    owner: Registrar's Office
+    # The source page lists it as courses.davidson.edu, which doesn't resolve (2026-10-12).
+    aliases: [courses.davidson.edu]
+
+  - name: Digital Projects
+    url: https://digitalprojects.davidson.edu/
+    purpose: Faculty, course and student created digital projects
+    owner: Digital Learning / Library
+
+  - name: Moodle
+    url: https://moodle.davidson.edu/
+    purpose: Learning management system
+    owner: Technology & Innovation
+
+  - name: Davidson Wildcats
+    url: https://davidsonwildcats.com/
+    purpose: Sports information, team pages, athletic events and ticketing
+    owner: Athletics Department
+
+  - name: Domains
+    url: https://domains.davidson.edu/
+    purpose: Personal identity websites
+    owner: Self-service
+
+  - name: Ad Astra
+    url: https://adastra.davidson.edu/
+    purpose: Campus calendars, event management and room reservations
+    owner: Technology & Innovation
+    # Ad Astra replaced EMS; the source page still lists ems.davidson.edu (2026-10-12).
+    replaces: [ems.davidson.edu]
+
+  - name: Google Sites
+    url: null
+    purpose: Supplemental websites for programs, projects and events that don't duplicate content on official college websites
+    owner: Technology & Innovation

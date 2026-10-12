@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/official-sites/v1.schema.json",
+  "title": "Official Davidson sites, version 1",
+  "description": "official-sites.yml at the root of dc-choreo-workflows: the websites College Communications authorizes, which the overlap check compares a new app's purpose against.",
+  "type": "object",
+  "required": ["official_sites", "source", "as_of", "sites"],
+  "additionalProperties": false,
+  "properties": {
+    "official_sites": {
+      "description": "Format version.",
+      "const": 1
+    },
+    "source": {
+      "description": "The page College Communications publishes the list on.",
+      "type": "string",
+      "format": "uri"
+    },
+    "as_of": {
+      "description": "The date the list was last checked against the source, YYYY-MM-DD, in quotes.",
+      "type": "string",
+      "format": "date"
+    },
+    "sites": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "hostname": {
+      "type": "string",
+      "pattern": "^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+    },
+    "site": {
+      "type": "object",
+      "required": ["name", "url", "purpose", "owner"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "The site's name, as College Communications lists it.",
+          "type": "string",
+          "minLength": 2
+        },
+        "url": {
+          "description": "The site's address, https only. Null for a platform with no single site, such as Google Sites.",
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "format": "uri", "pattern": "^https://" }
+          ]
+        },
+        "purpose": {
+          "description": "What the site is for, in College Communications' words. The overlap check compares a new app's purpose against this.",
+          "type": "string",
+          "minLength": 3
+        },
+        "owner": {
+          "description": "The office that owns the site.",
+          "type": "string",
+          "minLength": 2
+        },
+        "aliases": {
+          "description": "Other hostnames the site is known by.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/hostname" }
+        },
+        "replaces": {
+          "description": "Hostnames of retired sites this one replaced, so an app duplicating the old site is still caught.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/hostname" }
+        }
+      }
+    }
+  }
+}
