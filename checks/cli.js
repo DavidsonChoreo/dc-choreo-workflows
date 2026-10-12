@@ -17,6 +17,7 @@ import { explainSecrets } from './secrets.js';
 import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
 import { scanHttp, scanCors, explainAxe } from './code.js';
+import { checkWorkspace } from './workspace.js';
 import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from './dependencies.js';
 
 const CHECKS = {
@@ -32,6 +33,7 @@ const CHECKS = {
   unused: { title: 'Dependencies', run: runUnused },
   code: { title: 'Code', run: runCode },
   accessibility: { title: 'Accessibility', run: runAccessibility },
+  workspace: { title: 'Workspace', run: runWorkspace },
 };
 
 
@@ -205,6 +207,41 @@ function runCode() {
     .map((path) => ({ path, text: readFileSync(path, 'utf8') }));
   const results = [scanHttp(files), scanCors(files)];
   return { file: 'PASSPORT.yml', problems: results.flatMap((r) => r.problems), warnings: [] };
+}
+
+// What the app factory sets up, confirmed at the publish request. Reads the
+// repository named by $CHOREO_REPOSITORY (owner/name; $GITHUB_REPOSITORY by
+// default) through the GitHub API with $GITHUB_TOKEN.
+async function runWorkspace() {
+  const repository = process.env.CHOREO_REPOSITORY || process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  if (!repository || !token) {
+    return { file: 'PASSPORT.yml', problems: ['The workspace check needs the repository\'s name and a token to read it, and has neither. This is a problem with the publish request, not the app; ask Platform Engineering.'], warnings: [] };
+  }
+  const api = async (path) => {
+    const response = await fetch(`https://api.github.com${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`GitHub API ${path}: ${response.status}`);
+    return response.json();
+  };
+
+  const teams = (await api(`/repos/${repository}/teams?per_page=100`)) ?? [];
+  const team = teams.find((t) => t.slug === 'platform-engineering');
+  const properties = (await api(`/repos/${repository}/properties/values`)) ?? [];
+  const productOwnerEmail = properties.find((p) => p.property_name === 'product-owner-email')?.value ?? null;
+  const passport = readPassport();
+
+  return {
+    file: 'PASSPORT.yml',
+    ...checkWorkspace({
+      repository,
+      teamPermission: team?.permission ?? null,
+      productOwnerEmail,
+      businessOwnerEmail: passport.value?.business_owner?.email ?? null,
+    }),
+  };
 }
 
 // WCAG 2.0 AA on the built site: up to 25 pages of a Pages site, or a

@@ -19,6 +19,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/audit.js` | Explains `npm audit`: high and critical vulnerabilities fail, moderate and low warn |
 | `checks/dependencies.js` | New dependencies exist on the registry (and warn when brand new), no workflow auto-merges, runtimes aren't past end of life (endoflife.date), and unused dependencies warn (knip) |
 | `checks/code.js` | No plain `http://` calls and no CORS open to any website in source and config; and axe's WCAG 2.0 A and AA rules on the built pages, where any violation fails (pipeline.md decision 36) |
+| `checks/workspace.js` | At the publish request only: the repository is in DavidsonChoreo, the PE team has write, and `product-owner-email` includes the passport's business owner. PE completes anything missing |
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
@@ -56,7 +57,7 @@ Platform repositories, repositories with the `sandbox` topic, and archived repos
 
 Incubating apps are private, and their builders have full autonomy: nothing runs in an incubating repository. The checks run at two points:
 
-- **The publish request.** When a builder asks to publish, the assessor run in this repository calls `checks.yml` with the app's `repository` and `ref`, and a token that can read the private repository. This is where the real scrutiny starts.
+- **The publish request.** When a builder asks to publish, the assessor run in this repository calls `checks.yml` with the app's `repository` and `ref`, `publish_request: true`, and a token that can read the private repository. This is where the real scrutiny starts, and it adds the workspace check.
 - **Every pull request on a hosted app.** The `lifecycle: hosted` ruleset requires `required.yml`, which calls `checks.yml`. Merges into `main` need the checks to pass, and a builder can't remove a required workflow.
 
 ## Versions

@@ -3,7 +3,7 @@ description: Runs one Choreo check at an app's root, with messages written for b
 
 inputs:
   check:
-    description: "Which check to run: passport, license, tier or files."
+    description: "Which check to run: passport, license, tier, files or workspace."
     required: true
   working-directory:
     description: The app's root. The checkout's root by default.
