@@ -43,3 +43,45 @@ test('Windows line endings are not an edit', () => {
   });
   assert.equal(result.ok, true);
 });
+
+import { checkCodeowners } from '../checks/files.js';
+
+const team = '@DavidsonChoreo/platform-engineering';
+const canonical = `# Platform Engineering approves every change to these files.\n/PASSPORT.yml ${team}\n/AGENTS.md ${team}\n/CLAUDE.md ${team}\n`;
+
+test('codeowners: the canonical lines pass', () => {
+  assert.equal(checkCodeowners(canonical).ok, true);
+});
+
+test('codeowners: a builder can add owners for their own files', () => {
+  const result = checkCodeowners(`/src/ @someone\n${canonical}`);
+  assert.equal(result.ok, true, result.problems.join('\n'));
+});
+
+test('codeowners: no CODEOWNERS file fails', () => {
+  const result = checkCodeowners(null);
+  assert.equal(result.ok, false);
+  assert.match(result.problems[0], /CODEOWNERS/);
+});
+
+test('codeowners: a governed file without the team fails, naming it', () => {
+  const result = checkCodeowners(canonical.replace(`/CLAUDE.md ${team}\n`, ''));
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /`CLAUDE.md`/);
+});
+
+test('codeowners: a later catch-all line that drops the team fails, since the last match wins', () => {
+  const result = checkCodeowners(`${canonical}* @someone\n`);
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 3);
+  assert.match(result.problems[0], /last/);
+});
+
+test('codeowners: a later catch-all that keeps the team passes', () => {
+  assert.equal(checkCodeowners(`${canonical}* @someone ${team}\n`).ok, true);
+});
+
+test('codeowners: patterns without a leading slash count too', () => {
+  assert.equal(checkCodeowners(canonical.replaceAll('/PASSPORT', 'PASSPORT')).ok, true);
+});

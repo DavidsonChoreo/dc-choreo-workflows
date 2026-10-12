@@ -26,3 +26,42 @@ export function checkFiles({ files, hashes }) {
 
   return { ok: problems.length === 0, problems, warnings: [] };
 }
+
+// CODEOWNERS has to give PASSPORT.yml, AGENTS.md and CLAUDE.md to Platform
+// Engineering, so every change to them needs PE's approval (pipeline.md,
+// decision 15). In CODEOWNERS the last matching line wins, so the check reads
+// the last line that matches each file. It understands exact paths and the
+// catch-alls `*`, `/*` and `**`; a builder's own patterns for other paths
+// don't matter to it.
+export const PE_TEAM = '@DavidsonChoreo/platform-engineering';
+const GOVERNED = ['PASSPORT.yml', 'AGENTS.md', 'CLAUDE.md'];
+const CATCH_ALL = new Set(['*', '/*', '**', '/**']);
+
+export function checkCodeowners(text) {
+  if (text === null) {
+    return {
+      ok: false,
+      problems: [`This repository has no CODEOWNERS file. It makes Platform Engineering's approval required for changes to ${GOVERNED.map((f) => `\`${f}\``).join(', ')}. Restore it with the package's update command.`],
+      warnings: [],
+    };
+  }
+
+  const rules = text.split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [pattern, ...owners] = line.split(/\s+/);
+      return { pattern, owners };
+    });
+
+  const problems = [];
+  for (const file of GOVERNED) {
+    const last = rules.filter(({ pattern }) => CATCH_ALL.has(pattern) || pattern.replace(/^\//, '') === file).at(-1);
+    if (!last) {
+      problems.push(`CODEOWNERS doesn't name an owner for \`${file}\`. Add the line \`/${file} ${PE_TEAM}\`, or restore CODEOWNERS with the package's update command.`);
+    } else if (!last.owners.includes(PE_TEAM)) {
+      problems.push(`In CODEOWNERS, the last line matching \`${file}\` is \`${last.pattern} ${last.owners.join(' ')}\`, which leaves out ${PE_TEAM}. The last matching line wins, so put \`/${file} ${PE_TEAM}\` after it, or add ${PE_TEAM} to that line.`);
+    }
+  }
+  return { ok: problems.length === 0, problems, warnings: [] };
+}
