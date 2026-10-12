@@ -22,7 +22,7 @@ const goodApp = {
 };
 
 // Runs one check in a fresh directory, the way CI runs it at an app's root.
-function run(check, files = goodApp) {
+function run(check, files = goodApp, env = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'choreo-'));
   for (const [path, text] of Object.entries(files)) {
     if (text === null) continue;
@@ -31,10 +31,12 @@ function run(check, files = goodApp) {
   }
   const summary = join(dir, '.summary.md');
   writeFileSync(summary, '');
+  const output = join(dir, '.output.txt');
+  writeFileSync(output, '');
   const result = spawnSync(process.execPath, [cli, check], {
     cwd: dir,
     encoding: 'utf8',
-    env: { ...process.env, GITHUB_STEP_SUMMARY: summary },
+    env: { ...process.env, GITHUB_STEP_SUMMARY: summary, GITHUB_OUTPUT: output, ...resolveEnv(env, dir) },
   });
   const lines = result.stdout.split('\n');
   return {
@@ -42,7 +44,13 @@ function run(check, files = goodApp) {
     errors: lines.filter((line) => line.startsWith('::error ')),
     warnings: lines.filter((line) => line.startsWith('::warning ')),
     summary: readFileSync(summary, 'utf8'),
+    output: readFileSync(output, 'utf8'),
   };
+}
+
+// Env values may name a file inside the app's directory with {dir}.
+function resolveEnv(env, dir) {
+  return Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v.replace('{dir}', dir)]));
 }
 
 const without = (path) => ({ ...goodApp, [path]: null });
@@ -131,4 +139,103 @@ test('an unknown check name exits 2 with usage', () => {
   const result = run('nonsense');
   assert.equal(result.status, 2);
   assert.match(result.stderr, /usage/i);
+});
+
+const gitleaksReport = readFileSync(fixture('./fixtures/reports/gitleaks.json'), 'utf8');
+
+test('secrets: a clean report passes', () => {
+  const result = run('secrets', { ...goodApp, '.gitleaks.json': '[]' }, { GITLEAKS_REPORT: '{dir}/.gitleaks.json' });
+  assert.equal(result.status, 0, result.stdout);
+});
+
+test('secrets: each secret is an annotation on its own file and line', () => {
+  const result = run('secrets', { ...goodApp, '.gitleaks.json': gitleaksReport }, { GITLEAKS_REPORT: '{dir}/.gitleaks.json' });
+  assert.equal(result.status, 1);
+  assert.equal(result.errors.length, 2);
+  assert.match(result.errors[0], /^::error file=config\.js,line=1,title=Secrets::/);
+  assert.match(result.errors[1], /^::error file=server\/api\/slate\.ts,line=12,title=Secrets::/);
+});
+
+test('secrets: a missing report fails rather than passing silently', () => {
+  const result = run('secrets', goodApp, { GITLEAKS_REPORT: '{dir}/nowhere.json' });
+  assert.equal(result.status, 1);
+});
+
+const buildable = {
+  ...goodApp,
+  'package.json': JSON.stringify({ name: 'app', private: true, scripts: { build: 'node build.js' } }),
+  'package-lock.json': JSON.stringify({ name: 'app', lockfileVersion: 3, requires: true, packages: { '': { name: 'app' } } }),
+};
+
+test('build-plan: a paved Nuxt app with a lockfile is built', () => {
+  const result = run('build-plan', buildable);
+  assert.equal(result.status, 0, result.stdout);
+  assert.match(result.output, /^build=true$/m);
+});
+
+test('build-plan: a paved app without a lockfile fails', () => {
+  const result = run('build-plan', { ...buildable, 'package-lock.json': null });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /package-lock\.json/);
+  assert.match(result.output, /^build=false$/m);
+});
+
+test('build-plan: an app off the paved road is skipped with a warning', () => {
+  const result = run('build-plan', {
+    ...buildable,
+    'PASSPORT.yml': passport.replace('road: paved', 'road: non-paved').replace('stack: nuxt', 'stack: other'),
+  });
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.output, /^build=false$/m);
+});
+
+const pagesPassport = readFileSync(fixture('../examples/passport/library-hours.yml'), 'utf8');
+const html = (head) => `<!DOCTYPE html><html><head>${head}</head><body></body></html>`;
+
+test('indexing: a built Pages site is read from .output/public', () => {
+  const result = run('indexing', {
+    ...goodApp,
+    'PASSPORT.yml': pagesPassport,
+    '.output/public/index.html': html(''),
+    '.output/public/robots.txt': 'User-agent: *\nAllow: /\n',
+    '.output/public/sitemap.xml': '<urlset/>',
+  });
+  assert.equal(result.status, 0, result.stdout);
+});
+
+test('indexing: a non-indexable built page without noindex fails', () => {
+  const result = run('indexing', {
+    ...goodApp,
+    'PASSPORT.yml': pagesPassport.replace('indexable: true', 'indexable: false'),
+    '.output/public/index.html': html(''),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /title=Indexing::/);
+});
+
+test('indexing: a container app is started and its home page checked', () => {
+  const server = `
+    import { createServer } from 'node:http';
+    createServer((req, res) => {
+      res.setHeader('X-Robots-Tag', 'noindex');
+      res.setHeader('Content-Type', 'text/html');
+      res.end('<html><head><meta name="robots" content="noindex"></head></html>');
+    }).listen(process.env.PORT);
+  `;
+  const result = run('indexing', { ...goodApp, '.output/server/index.mjs': server });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('indexing: a container app that won\'t start is a warning, not a failure', () => {
+  const result = run('indexing', { ...goodApp, '.output/server/index.mjs': 'process.exit(1);\n' });
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /start/);
+});
+
+test('indexing: no build output fails', () => {
+  const result = run('indexing', goodApp);
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /\.output/);
 });

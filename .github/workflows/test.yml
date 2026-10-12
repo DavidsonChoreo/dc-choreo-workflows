@@ -53,3 +53,61 @@ jobs:
         run: |
           echo "::error::The check action passed a broken passport."
           exit 1
+
+  # Builds test/fixtures/pages-app, an indexable Pages site, then the same
+  # site marked not indexable, which has to fail the indexing check.
+  build-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The sample Pages site builds and passes
+        uses: ./actions/build
+        with:
+          working-directory: test/fixtures/pages-app
+      - name: Mark a copy of the site not indexable
+        run: |
+          cp -r test/fixtures/pages-app "$RUNNER_TEMP/noindex"
+          rm -rf "$RUNNER_TEMP/noindex/.output"
+          sed -i 's/^indexable: true/indexable: false/' "$RUNNER_TEMP/noindex/PASSPORT.yml"
+      - name: A page without noindex fails
+        id: bad
+        continue-on-error: true
+        uses: ./actions/build
+        with:
+          working-directory: ${{ runner.temp }}/noindex
+      - name: Confirm it failed
+        if: steps.bad.outcome != 'failure'
+        run: |
+          echo "::error::The build action passed a non-indexable site without noindex."
+          exit 1
+
+  # Scans this repository's own history, which has to be clean, then a new
+  # repository with a fake key in an old commit, which has to fail. The key
+  # is assembled at run time so this file never contains it.
+  secrets-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: This repository's history is clean
+        uses: ./actions/secrets
+      - name: Commit a fake key, then delete it
+        run: |
+          repo="$RUNNER_TEMP/leaky"
+          git init -q "$repo" && cd "$repo"
+          git config user.email test@example.com && git config user.name test
+          printf 'const key = "%s%s";\n' AKIA Z7Q4XWPLMNB3RT5K > config.js
+          git add config.js && git commit -qm "add config"
+          git rm -q config.js && git commit -qm "remove config"
+      - name: A key deleted from the history still fails
+        id: bad
+        continue-on-error: true
+        uses: ./actions/secrets
+        with:
+          working-directory: ${{ runner.temp }}/leaky
+      - name: Confirm it failed
+        if: steps.bad.outcome != 'failure'
+        run: |
+          echo "::error::The secrets action passed a history holding a key."
+          exit 1

@@ -15,10 +15,15 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/license.js` | A `LICENSE` file that matches the passport's `license`; Apache-2.0, MIT and BSD-3-Clause pass, others pass with a warning for review |
 | `checks/tier.js` | The code matches the tier: no `server/` on Pages; on a container app, a Containerfile with digest-pinned base images, a non-root final user and a healthcheck |
 | `checks/files.js` | `AGENTS.md` and `CLAUDE.md` match a released canonical copy |
-| `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
+| `checks/secrets.js` | Explains a gitleaks scan of the full history: each secret, its file, line and first commit, never its value or author |
+| `checks/audit.js` | Explains `npm audit`: high and critical vulnerabilities fail, moderate and low warn |
+| `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
+| `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
-| `actions/check/` | The checks as one composite action, so a run always uses the scripts from its own version |
-| `test/` | Tests for the checks, run with `npm test`, and `test/fixtures/app`, a sample app that passes every check |
+| `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
+| `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
+| `actions/build/` | For paved-road apps: `npm ci`, the audit, `npm run build`, then the indexing check on the built site. Other stacks are skipped with a warning |
+| `test/` | Tests for the checks, run with `npm test`, `test/fixtures/app`, a sample container app that passes the file checks, and `test/fixtures/pages-app`, a sample Pages site that builds and passes indexing |
 | `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
 | `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |
 
