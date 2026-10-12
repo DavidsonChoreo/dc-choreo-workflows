@@ -7,12 +7,12 @@ const passport = readFileSync(new URL('../examples/passport/academic-deadlines.y
 
 const repo = (name, extra = {}) => ({ name, full_name: `DavidsonChoreo/${name}`, topics: [], archived: false, description: null, ...extra });
 
-test('an app with a passport gets its facts from the passport', () => {
-  const entry = buildEntry({ repo: repo('academic-deadlines'), lifecycle: 'incubating', passportText: passport });
+test('a hosted app gets its facts from the passport, owners included', () => {
+  const entry = buildEntry({ repo: repo('academic-deadlines'), lifecycle: 'hosted', passportText: passport });
   assert.deepEqual(entry, {
     app: 'academic-deadlines',
     repository: 'DavidsonChoreo/academic-deadlines',
-    lifecycle: 'incubating',
+    lifecycle: 'hosted',
     passport: 'valid',
     tier: 'container',
     department: "Registrar's Office",
@@ -22,6 +22,20 @@ test('an app with a passport gets its facts from the passport', () => {
     created: '2026-10-12',
     review: '2027-10-12',
   });
+});
+
+test('an incubating app lists its business owner but not its builders', () => {
+  const entry = buildEntry({ repo: repo('academic-deadlines'), lifecycle: 'incubating', passportText: passport });
+  assert.equal(entry.app_owners, undefined);
+  assert.deepEqual(entry.business_owner, { name: 'Morgan Example', email: 'moexample@davidson.edu' });
+  assert.equal(entry.department, "Registrar's Office");
+  assert.doesNotMatch(JSON.stringify(entry), /daexample|Dana Example/);
+});
+
+test('an invalid passport on an incubating app still hides its builders', () => {
+  const broken = passport.replace('  tier: container', '  tier: swa');
+  const entry = buildEntry({ repo: repo('academic-deadlines'), lifecycle: 'incubating', passportText: broken });
+  assert.equal(entry.app_owners, undefined);
 });
 
 test('an app without a passport is still listed, from its repository', () => {
@@ -58,7 +72,7 @@ test('the index has one short line per app, sorted by name', () => {
   assert.equal(index.inventory, 1);
   assert.equal(index.generated, '2026-10-12T06:00:00Z');
   assert.deepEqual(index.apps.map((a) => a.app), ['academic-deadlines', 'zeta']);
-  assert.deepEqual(Object.keys(index.apps[0]), ['app', 'repository', 'lifecycle', 'tier', 'department', 'app_owners', 'purpose', 'passport']);
+  assert.deepEqual(Object.keys(index.apps[0]), ['app', 'repository', 'lifecycle', 'tier', 'department', 'business_owner', 'purpose', 'passport']);
 });
 
 // A stand-in for the GitHub API, answering only the calls collect() makes.

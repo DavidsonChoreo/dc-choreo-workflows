@@ -2,13 +2,18 @@
 // (DavidsonCollege/platform-engineering#91): one entry per app in the org,
 // from its passport and its custom properties, and an index of them all.
 // Incubating apps are listed too: their existence and these facts are
-// public, their code stays private. Platform repositories, sandboxes and
+// public, their code stays private. Their builders aren't named until the
+// app is hosted, since they may be students who haven't published anything
+// yet; the department and business owner stand in (decided 2026-10-12). Platform repositories, sandboxes and
 // archived repositories aren't apps and are skipped.
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { checkPassport } from '../checks/passport.js';
+
+// Lifecycles whose app is public, so its builders can be named.
+const NAMED = new Set(['hosted', 'sunsetting']);
 
 export function buildEntry({ repo, lifecycle, passportText }) {
   const base = { app: repo.name, repository: repo.full_name, lifecycle };
@@ -27,7 +32,7 @@ export function buildEntry({ repo, lifecycle, passportText }) {
     passport: checkPassport(passportText).ok ? 'valid' : 'invalid',
     tier: passport.profile?.tier,
     department: passport.department,
-    app_owners: passport.app_owners,
+    app_owners: NAMED.has(lifecycle) ? passport.app_owners : undefined,
     business_owner: passport.business_owner,
     purpose: passport.purpose,
     created: dateText(passport.created),
@@ -38,7 +43,7 @@ export function buildEntry({ repo, lifecycle, passportText }) {
 
 // The index: one short line per app, so a reader that wants every app opens one file.
 export function buildIndex(entries, generated) {
-  const fields = ['app', 'repository', 'lifecycle', 'tier', 'department', 'app_owners', 'purpose', 'passport'];
+  const fields = ['app', 'repository', 'lifecycle', 'tier', 'department', 'business_owner', 'app_owners', 'purpose', 'passport'];
   const apps = [...entries]
     .sort((a, b) => a.app.localeCompare(b.app, 'en', { sensitivity: 'base' }))
     .map((entry) => Object.fromEntries(fields.filter((f) => entry[f] !== undefined).map((f) => [f, entry[f]])));
