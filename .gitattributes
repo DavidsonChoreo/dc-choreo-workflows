@@ -1,0 +1,5 @@
+# Check out with LF line endings everywhere, so fixtures, generated docs and
+# canonical files compare the same on Windows as on Linux.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
