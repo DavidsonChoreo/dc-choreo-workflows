@@ -1,5 +1,5 @@
 name: Choreo build check
-description: Checks dependencies, runtimes and code, then builds a paved-road app from its lockfile, checks it for known vulnerabilities and unused dependencies, and checks the built site's indexing and accessibility (WCAG 2.0 AA).
+description: Checks dependencies, runtimes and code, then builds a paved-road app from its lockfile, checks it for known vulnerabilities and unused dependencies, and checks the built site's indexing and accessibility (WCAG 2.1 AA).
 
 inputs:
   working-directory:
@@ -67,7 +67,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" indexing
-    - name: Check accessibility (WCAG 2.0 AA)
+    - name: Check accessibility (WCAG 2.1 AA)
       if: steps.plan.outputs.build == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}

@@ -320,5 +320,14 @@ test('accessibility: an image without alt text fails', () => {
   const page = accessiblePage.replace('<p>Open 8 to 5.</p>', '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">');
   const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': page });
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.errors.join('\n'), /WCAG 2\.0 AA/);
+  assert.match(result.errors.join('\n'), /WCAG 2\.1 AA/);
+});
+
+test('accessibility: a WCAG 2.1 rule fails too, not only 2.0 ones', () => {
+  // autocomplete-valid is WCAG 2.1 success criterion 1.3.5; the 2.0 rules don't run it.
+  const form = '<form><label for="e">Email</label><input id="e" type="email" autocomplete="nonsense-value"></form>';
+  const page = accessiblePage.replace('<p>Open 8 to 5.</p>', form);
+  const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': page });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.errors.join('\n'), /autocomplete/i);
 });

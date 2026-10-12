@@ -66,7 +66,7 @@ test('accessibility: a violation fails, whatever its impact, with how to fix it'
   assert.match(result.problems[0], /image-alt help/);
   assert.match(result.problems[0], /2 elements/);
   assert.match(result.problems[0], /dequeuniversity/);
-  assert.match(result.problems[0], /WCAG 2\.0 AA/);
+  assert.match(result.problems[0], /WCAG 2\.1 AA/);
 });
 
 test('accessibility: the same rule on several pages is one problem listing them', () => {
