@@ -1,0 +1,17 @@
+# The workflow the lifecycle: hosted ruleset requires. A ruleset can only
+# require a workflow that runs on pull requests, so this file exists to call
+# checks.yml. A builder can't remove it from a hosted app the way they could
+# remove the stub.
+name: choreo required
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    # This repository has no passport of its own.
+    if: github.repository != 'DavidsonChoreo/dc-choreo-workflows'
+    uses: DavidsonChoreo/dc-choreo-workflows/.github/workflows/checks.yml@v1
