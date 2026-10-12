@@ -117,3 +117,21 @@ test('judgments that do not fit the schema fail loudly', async () => {
   const bad = { ...judgments, controls: [{ id: '4.3', status: 'maybe', evidence: '' }] };
   await assert.rejects(runAssessment({ client: client(message(JSON.stringify(bad))), request: request() }), /schema/);
 });
+
+import { completeJudgments } from '../assessor/assess.js';
+
+test('with no LLM in the passport, the LLM-only controls are met from the passport, not left pending', () => {
+  const done = completeJudgments({ summary: 's', flags: [], controls: [] }, { rubric, llm: false });
+  const c = done.controls.find((x) => x.id === '5.5.4');
+  assert.equal(c.status, 'met');
+  assert.match(c.evidence, /no LLM/);
+});
+
+test('with an LLM, nothing is filled in: Claude has to judge those controls', () => {
+  const done = completeJudgments({ summary: 's', flags: [], controls: [] }, { rubric, llm: true });
+  assert.equal(done.controls.find((x) => x.id === '5.5.4'), undefined);
+});
+
+test('a refusal is left alone', () => {
+  assert.deepEqual(completeJudgments({ refused: true }, { rubric, llm: false }), { refused: true });
+});

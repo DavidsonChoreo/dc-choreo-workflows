@@ -139,8 +139,13 @@ function userMessage({ passportText, checkResults, sources }) {
   ];
 }
 
+// Whether the passport says the app calls an LLM: `llm` set to anything but null.
+export function hasLlm(passportText) {
+  return /^llm:\s*(?!null\s*$)\S/m.test(passportText);
+}
+
 export function buildRequest({ tier, rubric, map, passportText, checkResults, sources }) {
-  const llm = /^llm:\s*(?!null\s*$)\S/m.test(passportText);
+  const llm = hasLlm(passportText);
   return {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -157,10 +162,24 @@ export function buildRequest({ tier, rubric, map, passportText, checkResults, so
   };
 }
 
+// Controls judged only by `when: llm` rubric items are met from the passport
+// when the app calls no LLM: that's a fact, not a judgment, so Claude isn't
+// asked about them.
+export function completeJudgments(judgments, { rubric, llm }) {
+  if (judgments.refused || llm) return judgments;
+  const judged = new Set(judgments.controls.map((c) => c.id));
+  const llmOnly = rubric.items.filter((i) => i.when === 'llm').flatMap((i) => i.controls)
+    .filter((id) => !judged.has(id) && !rubric.items.some((i) => i.when !== 'llm' && i.controls.includes(id)));
+  const facts = llmOnly.map((id) => ({ id, status: 'met', evidence: "The passport's llm is null: the app calls no LLM, so this doesn't arise." }));
+  return { ...judgments, controls: [...judgments.controls, ...facts] };
+}
+
 // Streams the request, so a long review can't hit an HTTP timeout, and
 // returns the judgments, or { refused: true } when every model declined.
 export async function runAssessment({ client, request }) {
   const message = await client.beta.messages.stream(request).finalMessage();
+  const u = message.usage ?? {};
+  console.log(`Tokens: ${u.input_tokens ?? 0} input, ${u.cache_read_input_tokens ?? 0} read from cache, ${u.cache_creation_input_tokens ?? 0} written to cache, ${u.output_tokens ?? 0} output. Model: ${message.model ?? request.model}.`);
   if (message.stop_reason === 'refusal') return { refused: true };
   if (message.stop_reason === 'max_tokens') {
     throw new Error(`The assessment was cut off at max_tokens (${request.max_tokens}); its judgments are incomplete, so no report was written.`);

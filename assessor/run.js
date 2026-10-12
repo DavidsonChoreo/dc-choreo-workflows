@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import Anthropic from '@anthropic-ai/sdk';
 import { parse, parseDocument } from 'yaml';
 import { loadControlMap } from '../checks/control-map.js';
-import { collectSources, buildRequest, runAssessment } from './assess.js';
+import { collectSources, buildRequest, runAssessment, completeJudgments, hasLlm } from './assess.js';
 import { assembleReport } from './report.js';
 
 // The checks the publish request runs, in report order. One with no result
@@ -50,7 +50,7 @@ const request = buildRequest({
 });
 
 const client = new Anthropic();
-const judgments = await runAssessment({ client, request });
+const judgments = completeJudgments(await runAssessment({ client, request }), { rubric, llm: hasLlm(passportBytes.toString('utf8')) });
 
 const report = assembleReport({
   app: passport.app,
