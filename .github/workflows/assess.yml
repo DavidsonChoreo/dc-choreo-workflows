@@ -80,5 +80,6 @@ jobs:
           name: report
           path: |
             report.json
+            judgments.json
             results/
           if-no-files-found: ignore

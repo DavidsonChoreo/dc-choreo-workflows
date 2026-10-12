@@ -5,7 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import Anthropic from '@anthropic-ai/sdk';
 import { parse, parseDocument } from 'yaml';
@@ -60,6 +60,9 @@ const report = assembleReport({
   tier, map, rubric, checkResults, judgments,
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+// Claude's raw judgments, kept beside the report so a change to the
+// assembly rules can be replayed on past runs without calling the model.
+writeFileSync(join(dirname(reportPath), 'judgments.json'), `${JSON.stringify(judgments, null, 2)}\n`);
 summarize(report);
 console.log(`Report written to ${reportPath}: ${report.recommendation}.`);
 
