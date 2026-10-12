@@ -20,29 +20,36 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  # Runs the passport action from this branch against a passing app and a
-  # failing one. The failing run's annotation on PASSPORT.yml is expected.
-  passport-action:
+  # Runs the check action from this branch against the sample app in
+  # test/fixtures/app, then against a broken passport, which has to fail.
+  # The broken run's annotation on PASSPORT.yml is expected.
+  check-action:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        check: [passport, license, tier, files]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up a passing app and a failing one
-        run: |
-          mkdir -p "$RUNNER_TEMP/good" "$RUNNER_TEMP/bad"
-          cp examples/passport/academic-deadlines.yml "$RUNNER_TEMP/good/PASSPORT.yml"
-          sed 's/  tier: container/  tier: swa/' examples/passport/academic-deadlines.yml > "$RUNNER_TEMP/bad/PASSPORT.yml"
-      - name: A valid passport passes
-        uses: ./actions/passport
+      - name: The sample app passes
+        uses: ./actions/check
         with:
-          working-directory: ${{ runner.temp }}/good
+          check: ${{ matrix.check }}
+          working-directory: test/fixtures/app
+      - name: Break the sample app's passport
+        if: matrix.check == 'passport'
+        run: |
+          mkdir -p "$RUNNER_TEMP/bad"
+          sed 's/  tier: container/  tier: swa/' test/fixtures/app/PASSPORT.yml > "$RUNNER_TEMP/bad/PASSPORT.yml"
       - name: A broken passport fails
+        if: matrix.check == 'passport'
         id: bad
         continue-on-error: true
-        uses: ./actions/passport
+        uses: ./actions/check
         with:
+          check: passport
           working-directory: ${{ runner.temp }}/bad
       - name: Confirm the broken passport failed
-        if: steps.bad.outcome != 'failure'
+        if: matrix.check == 'passport' && steps.bad.outcome != 'failure'
         run: |
-          echo "::error::The passport action passed a broken passport."
+          echo "::error::The check action passed a broken passport."
           exit 1
