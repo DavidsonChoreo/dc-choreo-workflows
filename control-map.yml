@@ -17,6 +17,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `app` and `purpose`, required by the passport check.
 - id: '1.2'
   summary: Builder name and department
@@ -24,6 +26,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `app_owners` and `department`, required by the passport check.
 - id: '1.3'
   summary: Assigned business owner
@@ -31,6 +35,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `business_owner`, required by the passport check, which also fails when the business owner
     is one of the app owners.
 - id: '1.4'
@@ -44,6 +50,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `built_with`, which the plugin fills in, required by the passport check.
 - id: '1.6'
   summary: Where it runs
@@ -51,6 +59,9 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
+  - tier
   how: The passport's `profile.tier`, required by the passport check; the tier check confirms the code matches it.
 - id: '1.7'
   summary: Internet-facing or public audience
@@ -58,6 +69,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `profile.audience` and `audience_scope`, required by the passport check.
 - id: '1.8'
   summary: WAF and sign-in waiver, if granted
@@ -70,6 +83,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `profile.data_classification`, one of the four classes, required by the passport check; a
     Pages site may only hold Public data.
 - id: '1.10'
@@ -78,6 +93,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `custody`, required by the passport check.
 - id: '1.11'
   summary: Audience and brand designation
@@ -85,6 +102,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `audience_scope` and `brand`, required by the passport check.
 - id: '1.12'
   summary: Indexability, no by default
@@ -92,6 +111,9 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
+  - indexing
   how: The passport's `indexable`; the indexing check confirms the built site matches it.
 - id: '1.13'
   summary: License
@@ -99,6 +121,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - license
   how: The passport's `license`; the license check confirms a LICENSE file matches it.
 - id: '1.14'
   summary: Review and recertification date
@@ -106,6 +130,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `review`, required by the passport check; the renewal sweep acts on it.
 - id: '3.1'
   summary: What data the app reads, stores or transmits
@@ -182,6 +208,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: The passport's `regulations`, required by the passport check; any match routes discovery to a human with
     InfoSec and Legal (#86).
 - id: '4.1'
@@ -190,6 +218,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - secrets
   how: The secrets check scans the full git history with gitleaks; a finding blocks until rotated and removed from
     history with PE (decision 35).
 - id: '4.2'
@@ -284,6 +314,8 @@ controls:
   met_by:
     pages: n/a
     container: check
+  checks:
+  - passport
   how: The passport's `roles`, which a container app must list; they become its Entra app roles.
 - id: 5.1.4
   summary: 'Authorization tested: a lower role can''t act as a higher one'
@@ -358,6 +390,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - secrets
   how: The secrets check; runtime secrets live in the app's key vault, read with its managed identity.
 - id: 5.3.2
   summary: A committed secret is rotated immediately
@@ -408,6 +442,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - code
   how: The code check fails CORS open to any origin.
 - id: 5.4.3
   summary: Rate limiting on public-facing endpoints
@@ -535,6 +571,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - dependencies
   how: The dependency check fails a Node or Python version past end of life, from `engines`, `.nvmrc` and the Containerfile.
 - id: 5.7.3
   summary: Endpoint protection on machines that access Davidson data
@@ -556,6 +594,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - dependencies
   how: The dependency check looks each new dependency up on npm, failing a missing one and warning on one published
     in the last 30 days.
 - id: 5.8.2
@@ -564,6 +604,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - unused
   how: The build job runs knip and warns on unused dependencies; `AGENTS.md` rule 3 asks the builder to be able
     to explain each one.
 - id: 5.8.3
@@ -572,6 +614,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - dependencies
   how: The dependency check fails any workflow that turns on auto-merge.
 - id: 5.8.4
   summary: Production dependencies pinned exactly
@@ -579,6 +623,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - build-plan
   how: The build job requires a lockfile and installs with `npm ci`; the package writes exact versions and `save-exact`.
   gap: The checks don't yet fail a floating specifier, such as `^1.2.0`, in package.json.
 - id: 5.8.5
@@ -650,6 +696,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - accessibility
   how: The accessibility check runs axe's WCAG 2.1 A and AA rules on the built pages; any violation fails (pipeline.md
     decision 36).
 - id: 5.10.2
@@ -665,6 +713,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - accessibility
   how: axe's color-contrast rule, in the accessibility check.
 - id: 5.10.4
   summary: Text alternatives for non-text content
@@ -672,6 +722,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - accessibility
   how: axe's image-alt and related rules, in the accessibility check.
 - id: 5.10.5
   summary: Automated accessibility testing in CI
@@ -679,6 +731,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - accessibility
   how: The accessibility check runs axe in Chrome on every pull request and at the publish request, against WCAG
     2.1 AA.
 - id: 5.10.6
@@ -786,6 +840,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - code
   how: The code check fails plain `http://` calls.
 - id: 5.12.3
   summary: Outbound API keys stored in 1Password
@@ -793,6 +849,8 @@ controls:
   met_by:
     pages: check
     container: platform
+  checks:
+  - secrets
   how: In the app's key vault, accepted as equal or stronger per 5.3.1; a Pages site holds no keys, which the secrets
     check confirms.
 - id: 5.12.4
@@ -815,6 +873,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - secrets
   how: The secrets check scans the full history at the publish request, before the repository goes public.
 - id: '6.2'
   summary: No non-public data or derived artifacts anywhere in the repository or history
@@ -848,6 +908,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - code
   how: The code check fails plain `http://`; the platform serves HTTPS only.
 - id: '7.2'
   summary: Retention per data category, with automated deletion
@@ -874,6 +936,8 @@ controls:
   met_by:
     pages: check
     container: check
+  checks:
+  - passport
   how: As 3.10.
 - id: '8.2'
   summary: Legal and InfoSec consulted before build where frameworks apply

@@ -17,6 +17,8 @@ runs:
       working-directory: ${{ github.action_path }}/../..
       run: npm ci --omit=dev --no-audit --no-fund --loglevel=error
     - name: Check dependencies and runtimes
+      id: deps
+      continue-on-error: true
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -29,6 +31,8 @@ runs:
         fi
         node "$GITHUB_ACTION_PATH/../../checks/cli.js" dependencies
     - name: Check the code for plain http:// and open CORS
+      id: code
+      continue-on-error: true
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" code
@@ -44,11 +48,15 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: npm ci --no-audit --no-fund
     - name: Check dependencies for known vulnerabilities
+      id: audit
+      continue-on-error: true
       if: steps.plan.outputs.build == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" audit
     - name: Look for unused dependencies
+      id: unused
+      continue-on-error: true
       if: steps.plan.outputs.build == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -63,15 +71,49 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: npm run build
     - name: Check indexing
+      id: indexing
+      continue-on-error: true
       if: steps.plan.outputs.build == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" indexing
     - name: Check accessibility (WCAG 2.1 AA)
+      id: a11y
+      continue-on-error: true
       if: steps.plan.outputs.build == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" accessibility
+    - name: Fail if any check failed
+      if: always()
+      shell: bash
+      env:
+        OUTCOMES: deps=${{ steps.deps.outcome }} code=${{ steps.code.outcome }} audit=${{ steps.audit.outcome }} unused=${{ steps.unused.outcome }} indexing=${{ steps.indexing.outcome }} accessibility=${{ steps.a11y.outcome }}
+      run: |
+        # Each check above continues past a failure so the rest still run and
+        # the assessor sees every result; this step makes the job fail anyway.
+        if echo "$OUTCOMES" | grep -q '=failure'; then
+          echo "Failed: $(echo "$OUTCOMES" | tr ' ' '\n' | grep '=failure' | cut -d= -f1 | tr '\n' ' ')"
+          exit 1
+        fi
+    - name: Record the build's result for the assessor
+      if: always() && env.CHOREO_RESULT_DIR != '' && steps.plan.outputs.build == 'true'
+      shell: bash
+      env:
+        INSTALL: ${{ steps.install.outcome }}
+        BUILD: ${{ steps.build.outcome }}
+      run: |
+        mkdir -p "$CHOREO_RESULT_DIR"
+        node -e '
+          const { INSTALL, BUILD, CHOREO_RESULT_DIR } = process.env;
+          const problems = [];
+          if (INSTALL === "failure") problems.push("Installing the dependencies with npm ci failed.");
+          else if (BUILD === "failure") problems.push("Building the app with npm run build failed.");
+          const result = INSTALL === "success" && BUILD === "skipped"
+            ? { check: "build", skipped: true, reason: "An earlier step stopped the build." }
+            : { check: "build", problems, warnings: [] };
+          require("fs").writeFileSync(CHOREO_RESULT_DIR + "/build.json", JSON.stringify(result));
+        '
     - name: Explain a failed install or build
       if: failure() && (steps.install.outcome == 'failure' || steps.build.outcome == 'failure')
       shell: bash

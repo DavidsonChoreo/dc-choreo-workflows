@@ -331,3 +331,14 @@ test('accessibility: a WCAG 2.1 rule fails too, not only 2.0 ones', () => {
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.errors.join('\n'), /autocomplete/i);
 });
+
+test('with CHOREO_RESULT_DIR set, a check writes its result there as JSON', () => {
+  const outside = mkdtempSync(join(tmpdir(), 'results-'));
+  const result = run('license', without('LICENSE'), { CHOREO_RESULT_DIR: outside });
+  assert.equal(result.status, 1);
+  const written = JSON.parse(readFileSync(join(outside, 'license.json'), 'utf8'));
+  assert.equal(written.check, 'license');
+  assert.equal(written.problems.length, 1);
+  assert.match(written.problems[0], /LICENSE/);
+  assert.deepEqual(written.warnings, []);
+});
