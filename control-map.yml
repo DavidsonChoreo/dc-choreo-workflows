@@ -624,7 +624,7 @@ controls:
     pages: check
     container: check
   checks:
-  - build
+  - build-plan
   how: The build job requires a lockfile and installs with `npm ci`; the package writes exact versions and `save-exact`.
   gap: The checks don't yet fail a floating specifier, such as `^1.2.0`, in package.json.
 - id: 5.8.5

@@ -110,6 +110,7 @@
               "code",
               "indexing",
               "accessibility",
+              "build-plan",
               "build",
               "workspace"
             ]

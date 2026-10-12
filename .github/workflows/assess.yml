@@ -1,0 +1,84 @@
+# The assessor: runs every check against an app, then has Claude judge its
+# code against the security rubric, and writes report.json, which the three
+# approvers read at the ready call. Called by the publish request (#89), or
+# by hand. It checks out this repository at its own commit and uses the
+# actions by local path, so the checks and the assessor are always the same
+# version: call it only from within dc-choreo-workflows.
+name: assess
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: The app repository, as owner/name
+        required: true
+        type: string
+      ref:
+        description: The commit, branch or tag to assess
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: The app repository, as owner/name
+        required: true
+        type: string
+      ref:
+        description: The commit, branch or tag to assess (default branch if empty)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assess-${{ inputs.repository }}
+  cancel-in-progress: false
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    env:
+      CHOREO_RESULT_DIR: ${{ github.workspace }}/results
+    steps:
+      - name: Get a read token for the app
+        id: reader
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.CHOREO_READER_APP_ID }}
+          private-key: ${{ secrets.CHOREO_READER_PRIVATE_KEY }}
+          owner: DavidsonChoreo
+      - name: Check out the checks and the assessor
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the app
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.reader.outputs.token }}
+          path: app
+          fetch-depth: 0
+          persist-credentials: false
+
+      - { name: Passport, uses: ./actions/check, continue-on-error: true, with: { check: passport, working-directory: app } }
+      - { name: License, uses: ./actions/check, continue-on-error: true, with: { check: license, working-directory: app } }
+      - { name: Tier, uses: ./actions/check, continue-on-error: true, with: { check: tier, working-directory: app } }
+      - { name: Governance files, uses: ./actions/check, continue-on-error: true, with: { check: files, working-directory: app } }
+      - { name: Secrets, uses: ./actions/secrets, continue-on-error: true, with: { working-directory: app } }
+      - { name: Dependencies, code and build, uses: ./actions/build, continue-on-error: true, with: { working-directory: app } }
+
+      - name: Assess
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm ci --omit=dev --no-audit --no-fund --loglevel=error
+          node assessor/run.js app "$CHOREO_RESULT_DIR" report.json
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: report
+          path: |
+            report.json
+            results/
+          if-no-files-found: ignore

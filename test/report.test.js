@@ -4,7 +4,7 @@ import { assembleReport } from '../assessor/report.js';
 import { loadControlMap } from '../checks/control-map.js';
 
 const map = loadControlMap();
-const ALL_CHECKS = ['passport', 'license', 'tier', 'files', 'secrets', 'dependencies', 'audit', 'unused', 'code', 'indexing', 'accessibility', 'build'];
+const ALL_CHECKS = ['passport', 'license', 'tier', 'files', 'secrets', 'dependencies', 'code', 'build-plan', 'audit', 'unused', 'build', 'indexing', 'accessibility'];
 const passing = ALL_CHECKS.map((check) => ({ check, problems: [], warnings: [] }));
 
 const base = {

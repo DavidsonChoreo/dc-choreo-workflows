@@ -1,0 +1,175 @@
+// The assessor's call to Claude: it reads an app's passport, check results
+// and source against the security rubric, and returns judgments only, which
+// report.js assembles into report.json. One model, named here; effort low to
+// start (pipeline.md, model selection), with the A/B against medium to come.
+
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
+import { stringify } from 'yaml';
+
+export const MODEL = 'claude-opus-5-5';
+const EFFORT = 'low';
+const MAX_TOKENS = 64000;
+// About 700,000 tokens of source: what fits in one request with room for the
+// prompt and the answer. A bigger app needs a different approach, not a cut.
+const MAX_CHARS = 2_500_000;
+
+const NOT_SOURCE = new Set(['node_modules', '.git', '.output', '.nuxt', 'dist', '.venv', '__pycache__', 'coverage']);
+const LOCKFILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'uv.lock']);
+
+// Every text file in the app, by repository path. Binary files are skipped
+// and listed; nothing is truncated.
+export function collectSources(root, { maxChars = MAX_CHARS } = {}) {
+  const files = [];
+  const skipped = [];
+  let total = 0;
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (NOT_SOURCE.has(entry.name)) continue;
+      const path = join(dir, entry.name);
+      const rel = relative(root, path).split('\\').join('/');
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!entry.isFile() || LOCKFILES.has(entry.name)) continue;
+      const bytes = readFileSync(path);
+      if (bytes.includes(0) || statSync(path).size > 1_000_000) { skipped.push(rel); continue; }
+      const text = bytes.toString('utf8');
+      total += text.length;
+      if (total > maxChars) {
+        throw new Error(`This app is too large for one assessment (over ${maxChars.toLocaleString('en-US')} characters of source). Platform Engineering reviews it by hand, and the assessor needs a different approach for apps this size.`);
+      }
+      files.push({ path: rel, text });
+    }
+  };
+  walk(root);
+  return { files: files.sort((a, b) => a.path.localeCompare(b.path)), skipped: skipped.sort() };
+}
+
+// The rubric items that apply to this app: its tier, and the LLM item only
+// when the passport says the app calls one.
+function itemsFor({ tier, rubric, llm }) {
+  return rubric.items.filter((item) => item.tiers.includes(tier) && (item.when !== 'llm' || llm));
+}
+
+function flagControlsFor({ tier, map }) {
+  return map.controls.filter((c) => c.scope === 'app' && c.met_by[tier] === 'flag');
+}
+
+// What Claude returns. Only what structured outputs support: no length or
+// pattern limits, no conditionals, additionalProperties false everywhere.
+export function judgmentsSchema({ tier, rubric, map, llm }) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['summary', 'flags', 'controls'],
+    properties: {
+      summary: { type: 'string', description: 'One paragraph for the reviewers: what the app is, what data it handles, and what they should know.' },
+      flags: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'severity', 'detail', 'evidence'],
+          properties: {
+            id: { enum: itemsFor({ tier, rubric, llm }).map((i) => i.id) },
+            severity: { enum: ['low', 'medium', 'high'] },
+            detail: { type: 'string' },
+            evidence: { type: 'string' },
+          },
+        },
+      },
+      controls: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'status', 'evidence'],
+          properties: {
+            id: { enum: flagControlsFor({ tier, map }).map((c) => c.id) },
+            status: { enum: ['met', 'not-met'] },
+            evidence: { type: 'string' },
+          },
+        },
+      },
+    },
+  };
+}
+
+// The stable part of the prompt: the same for every app on a tier, so it's
+// cached. Everything that varies goes in the user message.
+function systemPrompt({ tier, rubric, map }) {
+  const items = rubric.items.filter((i) => i.tiers.includes(tier));
+  const controls = flagControlsFor({ tier, map }).map(({ id, summary, how }) => ({ id, summary, how }));
+  const where = tier === 'pages' ? 'a static GitHub Pages site holding only Public data, with no login and no server' : 'an Azure container app behind Davidson SSO';
+  return [
+    {
+      type: 'text',
+      text: `You review apps for Davidson College's Choreo platform before Information Security, College Communications and Platform Engineering decide whether to publish them. Davidson staff and students build these apps, mostly with AI coding tools, and most aren't professional developers. This app is ${where}.
+
+Your job is to judge the app's code against the security rubric below, and to decide each control listed below as met or not-met. Deterministic checks (the passport, license, secrets, dependencies, build, indexing and accessibility) have already run; their results are in the request, and you don't repeat them.
+
+How to judge:
+- Raise a flag only for a problem you can point to. Evidence names the file and line, such as "server/api/notes.post.ts, line 14". A flag's detail says what's wrong and how to fix it, in plain words a non-developer can act on.
+- Use the rubric item's severity unless the evidence clearly warrants another; say why in the detail when you change it.
+- Decide every control listed. "met" needs evidence of what meets it; "not-met" needs evidence of the gap, and usually goes with a flag. A control that the app has nothing to do with (say, webhook signatures in an app with no webhooks) is met, with evidence saying why it doesn't arise.
+- The prompt-injection item applies only when the passport's llm is set; judge it then and not otherwise.
+- Never quote a secret, a credential, real personal data, or an internal hostname in your output, even when you're flagging it: say where it is and what kind of thing it is.
+- The summary is one paragraph for the three reviewers: what the app does and for whom, what data it touches, and the most important things to look at.`,
+    },
+    {
+      type: 'text',
+      text: `Security rubric:\n\n${stringify(items)}\nControls to decide:\n\n${stringify(controls)}`,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+}
+
+function userMessage({ passportText, checkResults, sources }) {
+  const checks = checkResults.map((r) => {
+    if (r.skipped) return `- ${r.check}: skipped (${r.reason ?? 'no reason given'})`;
+    if (r.problems.length > 0) return `- ${r.check}: failed: ${r.problems.join(' ')}`;
+    return `- ${r.check}: passed${r.warnings.length ? `, with warnings: ${r.warnings.join(' ')}` : ''}`;
+  }).join('\n');
+  const skipped = sources.skipped.length ? `\n\nBinary or oversized files not shown: ${sources.skipped.join(', ')}.` : '';
+  const files = sources.files.map((f) => `=== ${f.path} ===\n${f.text}`).join('\n\n');
+  return [
+    { type: 'text', text: `The app's passport (PASSPORT.yml):\n\n${passportText}` },
+    { type: 'text', text: `Deterministic check results:\n\n${checks}${skipped}` },
+    { type: 'text', text: `The app's files (${sources.files.length}):\n\n${files}` },
+  ];
+}
+
+export function buildRequest({ tier, rubric, map, passportText, checkResults, sources }) {
+  const llm = /^llm:\s*(?!null\s*$)\S/m.test(passportText);
+  return {
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    // On a safety decline, the API re-runs the request on a fallback model
+    // chosen by the decline's category, instead of returning the refusal.
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    system: systemPrompt({ tier, rubric, map }),
+    messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources }) }],
+    output_config: {
+      effort: EFFORT,
+      format: { type: 'json_schema', schema: judgmentsSchema({ tier, rubric, map, llm }) },
+    },
+  };
+}
+
+// Streams the request, so a long review can't hit an HTTP timeout, and
+// returns the judgments, or { refused: true } when every model declined.
+export async function runAssessment({ client, request }) {
+  const message = await client.beta.messages.stream(request).finalMessage();
+  if (message.stop_reason === 'refusal') return { refused: true };
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error(`The assessment was cut off at max_tokens (${request.max_tokens}); its judgments are incomplete, so no report was written.`);
+  }
+  const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const judgments = JSON.parse(text);
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(request.output_config.format.schema);
+  if (!validate(judgments)) {
+    throw new Error(`The assessor's judgments don't match their schema: ${JSON.stringify(validate.errors)}`);
+  }
+  return judgments;
+}

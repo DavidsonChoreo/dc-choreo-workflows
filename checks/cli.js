@@ -3,7 +3,7 @@
 // annotation, on the file it's about, and both go into the job summary.
 // Exits 1 when the check finds a problem.
 
-import { existsSync, readFileSync, readdirSync, appendFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -467,4 +467,10 @@ if (!check) {
 
 const { file, problems, warnings } = await check.run();
 report(check.title, file, problems, warnings);
+// The assessor reads every check's result from here (assessor/run.js).
+if (process.env.CHOREO_RESULT_DIR) {
+  mkdirSync(process.env.CHOREO_RESULT_DIR, { recursive: true });
+  const text = (p) => (typeof p === 'string' ? p : p.message);
+  writeFileSync(join(process.env.CHOREO_RESULT_DIR, `${name}.json`), JSON.stringify({ check: name, problems: problems.map(text), warnings }, null, 2));
+}
 process.exitCode = problems.length > 0 ? 1 : 0;
