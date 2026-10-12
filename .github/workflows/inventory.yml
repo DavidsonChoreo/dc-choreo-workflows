@@ -1,0 +1,61 @@
+# Collects the Choreo app inventory every day and commits it to the
+# `inventory` branch, so main stays behind its pull-request rule. Readers use
+# https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/inventory/inventory/index.json
+# Reads the org with the davidson-choreo-reader app; writes with this
+# workflow's own token, which can only reach this repository.
+name: inventory
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: inventory
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get a read token for the org
+        id: reader
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.CHOREO_READER_APP_ID }}
+          private-key: ${{ secrets.CHOREO_READER_PRIVATE_KEY }}
+          owner: DavidsonChoreo
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --no-audit --no-fund
+      - name: Check out the inventory branch, or start it
+        run: |
+          if git ls-remote --exit-code --heads origin inventory >/dev/null; then
+            git fetch --depth=1 origin inventory
+            git worktree add "$RUNNER_TEMP/out" origin/inventory
+            git -C "$RUNNER_TEMP/out" switch -c inventory
+          else
+            git worktree add --detach "$RUNNER_TEMP/out"
+            git -C "$RUNNER_TEMP/out" switch --orphan inventory
+          fi
+      - name: Collect
+        env:
+          GITHUB_TOKEN: ${{ steps.reader.outputs.token }}
+        run: node collector/run.js "$RUNNER_TEMP/out"
+      - name: Commit if anything changed
+        working-directory: ${{ runner.temp }}/out
+        run: |
+          git add -A inventory
+          if git diff --cached --quiet; then
+            echo "No change."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "inventory: $(date -u +%Y-%m-%d)"
+          git push -q origin inventory

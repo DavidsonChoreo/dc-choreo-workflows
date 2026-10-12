@@ -21,6 +21,8 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
+| `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
+| `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
 | `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
@@ -38,6 +40,15 @@ Each schema's `$id` is its address. A published version never changes, so these 
 - Passport, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/passport/v1.schema.json`
 - Report, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json`
 - Official sites, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/official-sites/v1.schema.json`
+
+## The app inventory
+
+Every Choreo app, hosted or incubating, is listed on the `inventory` branch, regenerated daily:
+
+- `inventory/index.json`: one line per app (name, repository, lifecycle, tier, department, owners, purpose, and whether its passport is valid, invalid or missing). Read it at `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/inventory/inventory/index.json`.
+- `inventory/<app>.json`: each app's entry. The full monthly snapshot adds more to these later (DavidsonCollege/platform-engineering#91).
+
+Platform repositories, repositories with the `sandbox` topic, and archived repositories aren't apps and aren't listed. The collector reads the org with the `davidson-choreo-reader` GitHub App (read-only: contents, metadata, custom properties), whose ID is the `CHOREO_READER_APP_ID` variable and whose key is the `CHOREO_READER_PRIVATE_KEY` secret. It writes with the workflow's own token, so the inventory lives on its own branch and `main` keeps its pull-request rule.
 
 ## When the checks run
 
