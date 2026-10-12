@@ -3,6 +3,10 @@
     {
       "sha256": "50208364e0d0507c7207d0de87423f97c918e042c51ed25c6b6bcb634e4e9e2d",
       "from": "DavidsonCollege/dc-choreo-scaffold@46f1939 (packages/create-choreo-app/templates/_base)"
+    },
+    {
+      "sha256": "3ba91ef454335bd43daf3c394525150e5058eca9c2b23fcb656c6bc75b5e7b63",
+      "from": "DavidsonCollege/dc-choreo-scaffold@30e7d9a (packages/create-choreo-app/templates/_base, version 2)"
     }
   ],
   "CLAUDE.md": [
