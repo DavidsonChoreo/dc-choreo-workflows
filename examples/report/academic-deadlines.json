@@ -13,9 +13,9 @@
   "sections": {
     "security": {
       "controls": [
-        { "id": "example-waf-and-sign-in", "met_by": "platform", "status": "met", "evidence": "Entra sign-in is enforced by the container app module." },
-        { "id": "example-server-side-authz", "met_by": "flag", "status": "met", "evidence": "server/api/exceptions.post.ts calls the layer's role check before writing." },
-        { "id": "example-role-separation", "met_by": "attested", "status": "pending", "evidence": "The builder confirms it on the ready-call form." }
+        { "id": "4.8", "met_by": "platform", "status": "met", "evidence": "Entra sign-in is enforced by the container app module, and the app has no login of its own." },
+        { "id": "4.3", "met_by": "flag", "status": "met", "evidence": "server/api/exceptions.post.ts calls the layer's role check before writing." },
+        { "id": "5.1.4", "met_by": "attested", "status": "pending", "evidence": "The builder confirms it on the ready-call form." }
       ],
       "flags": [
         { "id": "unescaped-input", "severity": "medium", "detail": "Exception notes are rendered with v-html.", "evidence": "components/ExceptionNote.vue, line 12." }

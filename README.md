@@ -20,7 +20,7 @@ The required checks, the reusable deploy workflow, the rubrics and the official-
 - **Fields that re-run the ready call** are listed in the passport schema's `x-ready-call-fields`. A validator in strict mode, such as Ajv, needs that keyword allowed.
 - **One passport rule lives outside the schema.** The business owner can't also be an app owner. JSON Schema can't compare two fields, so the passport check enforces it.
 - **The passport hash** in a report is the SHA-256 of `PASSPORT.yml`'s bytes.
-- **Control IDs** in a report's security section are item numbers from Information Security's review standard. The example uses placeholder IDs until those numbers are in.
+- **Control IDs** in a report's security section are item numbers from Information Security's review standard, such as `4.3` for server-side authorization or `5.1.4` for testing that a lower role can't act as a higher one. Platform Engineering numbers the items in its copy of the standard.
 
 ## Changes
 
