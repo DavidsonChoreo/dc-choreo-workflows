@@ -11,6 +11,9 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `schemas/passport/v1.schema.json` | The passport: `PASSPORT.yml` at the root of every hosted repository, holding the owner's claims about the app |
 | `schemas/report/v1.schema.json` | The assessor's report, which Information Security, College Communications and Platform Engineering each approve from |
 | `examples/` | A valid example of each |
+| `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner, with messages written for builders |
+| `checks/passport-cli.js` | Runs the passport check at an app's root and reports each problem as an annotation on `PASSPORT.yml` |
+| `test/` | Tests for the checks, run with `npm test` |
 
 The required checks, the reusable deploy workflow, the rubrics and the official-sites list arrive here as the build goes on.
 
@@ -18,9 +21,15 @@ The required checks, the reusable deploy workflow, the rubrics and the official-
 
 - **Dates are quoted strings.** YAML reads an unquoted `2026-10-12` as a date object, which fails the schema. Write `created: "2026-10-12"`.
 - **Fields that re-run the ready call** are listed in the passport schema's `x-ready-call-fields`. A validator in strict mode, such as Ajv, needs that keyword allowed.
-- **One passport rule lives outside the schema.** The business owner can't also be an app owner. JSON Schema can't compare two fields, so the passport check enforces it.
+- **One passport rule lives outside the schema.** The business owner can't also be an app owner. JSON Schema can't compare two fields, so the passport check (`checks/passport.js`) enforces it.
 - **The passport hash** in a report is the SHA-256 of `PASSPORT.yml`'s bytes.
 - **Control IDs** in a report's security section are item numbers from Information Security's review standard, such as `4.3` for server-side authorization or `5.1.4` for testing that a lower role can't act as a higher one. Platform Engineering numbers the items in its copy of the standard.
+
+## Working on the checks
+
+Node 22 or later. `npm ci`, then `npm test`. Dependencies are pinned to exact versions, and CI runs the tests on every pull request.
+
+Check messages are read by builders, most of them not developers. Each one names the field, says what's wrong, and says how to fix it, in plain words. Raw validator output never reaches a builder.
 
 ## Changes
 
