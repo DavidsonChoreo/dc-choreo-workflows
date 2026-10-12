@@ -49,3 +49,10 @@ test('docs/control-map.md is up to date with control-map.yml', () => {
   const page = readFileSync(new URL('../docs/control-map.md', import.meta.url), 'utf8');
   assert.equal(page, renderControlMap(loadControlMap()), 'Run `npm run control-map-doc` and commit the result.');
 });
+
+test('every item met by a check names the checks that decide it, and only those items do', () => {
+  for (const c of map.controls.filter((c) => c.scope === 'app')) {
+    const byCheck = Object.values(c.met_by).includes('check');
+    assert.equal(Boolean(c.checks), byCheck, `${c.id}: checks ${byCheck ? 'missing' : 'present but nothing is met_by check'}`);
+  }
+});

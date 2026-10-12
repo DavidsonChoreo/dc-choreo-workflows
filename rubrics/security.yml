@@ -1,0 +1,190 @@
+# The assessor's security rubric: what Claude looks for in an app's code at the
+# publish request. Each item becomes a flag id in report.json when it finds
+# something, and judges the controls listed against it, which are the items
+# control-map.yml marks `flag`. A test keeps every flagged control covered.
+#
+# severity is the default when the problem is found; the assessor may lower it
+# with a reason in the flag's detail. `when: llm` items run only when the
+# passport's `llm` is set.
+rubric: security
+version: 1
+items:
+  - id: record-level-security
+    title: Record-level security
+    tiers: [container]
+    controls: ["4.2"]
+    severity: high
+    look_for: >
+      Every query that reads or writes records scoped to a person or a group filters by the signed-in user's
+      identity or role on the server. Flag queries that return or change other people's records, and tables
+      with no row-level rule where the data is shared.
+
+  - id: client-side-authorization
+    title: Authorization only in the browser
+    tiers: [container]
+    controls: ["4.3"]
+    severity: high
+    look_for: >
+      Role or permission checks that happen only in front-end code (hidden buttons, route guards, v-if on a
+      role) with no matching check in the server handler. Every server route that changes data or returns
+      restricted data must check the caller's role itself.
+
+  - id: exposed-admin-or-debug
+    title: Admin tooling or debug endpoints exposed
+    tiers: [container]
+    controls: ["4.4"]
+    severity: high
+    look_for: >
+      Admin pages, debug or test routes, seed or reset endpoints, health endpoints that dump configuration,
+      or development servers reachable in the production build.
+
+  - id: injection
+    title: Injection
+    tiers: [pages, container]
+    controls: ["5.5.1", "5.5.2", "5.5.3", "5.11.5"]
+    severity: high
+    look_for: >
+      SQL or NoSQL built by string concatenation with user input; user input passed to shell, eval or
+      child processes; user content rendered as HTML without escaping (v-html, innerHTML,
+      dangerouslySetInnerHTML); endpoints that don't validate input or encode output.
+
+  - id: prompt-injection
+    title: Prompt injection
+    tiers: [pages, container]
+    when: llm
+    controls: ["5.5.4"]
+    severity: high
+    look_for: >
+      Untrusted content (uploads, web pages, emails, API responses, form fields) placed in an LLM prompt
+      where it can change the model's instructions or trigger tool calls. Look for instructions and
+      untrusted data in the same message with no separation, and for tools the model can call with
+      consequences the user didn't ask for.
+
+  - id: file-uploads
+    title: File uploads
+    tiers: [container]
+    controls: ["5.5.5"]
+    severity: medium
+    look_for: >
+      Uploads accepted without a type and size check, stored where they can be executed or served as
+      the app's own pages, or shared beyond the uploader without malware scanning.
+
+  - id: webhook-signatures
+    title: Webhook signatures
+    tiers: [container]
+    controls: ["5.11.8"]
+    severity: high
+    look_for: >
+      Incoming webhook handlers that act on the payload without first verifying the sender's signature
+      or shared secret.
+
+  - id: broad-scopes
+    title: Overly broad OAuth scopes and permissions
+    tiers: [container]
+    controls: ["5.2.1", "5.2.2"]
+    severity: medium
+    look_for: >
+      OAuth scopes, Graph permissions or API roles wider than the code uses (for example, Mail.ReadWrite
+      where only Mail.Send is called, or .All scopes for one user's data), especially defaults copied
+      from samples.
+
+  - id: unguessable-url-only
+    title: Endpoints protected only by an unguessable URL
+    tiers: [container]
+    controls: ["5.11.3"]
+    severity: high
+    look_for: >
+      Routes whose only protection is a long, random or secret path or query token, with no
+      authentication or role check.
+
+  - id: unvalidated-external-data
+    title: Unvalidated data from outside APIs
+    tiers: [pages, container]
+    controls: ["5.12.5"]
+    severity: medium
+    look_for: >
+      Responses from third-party or Davidson APIs used without checking their shape, rendered as HTML,
+      or placed into an LLM prompt without treating them as untrusted.
+
+  - id: data-handling
+    title: Data the passport doesn't describe
+    tiers: [pages, container]
+    controls: ["3.1", "3.2", "3.5"]
+    severity: medium
+    look_for: >
+      Data the code reads, stores or sends that the passport's classification and `retention` don't
+      cover; data more sensitive than the passport's `data_classification`; Restricted or Confidential
+      data sent to a service outside Davidson's infrastructure.
+
+  - id: unapproved-service
+    title: Outside services not in the passport
+    tiers: [pages, container]
+    controls: ["3.7", "5.12.1", "5.4.6"]
+    severity: medium
+    look_for: >
+      Calls to outside services or APIs that the passport's `integrations` don't list, or whose data
+      classification is higher than the passport says. Name the platform, never the hostname.
+
+  - id: real-data-in-repository
+    title: Real data or internal details in the repository
+    tiers: [pages, container]
+    controls: ["4.10", "6.2", "6.4"]
+    severity: high
+    look_for: >
+      Anywhere in the files or their history: sample or test data drawn from real records, exports,
+      screenshots, log excerpts, real names or emails beyond the app's owners, internal hostnames or IP
+      addresses, and comments describing internal infrastructure. The repository goes public.
+
+  - id: tokens-in-urls
+    title: Tokens or secrets in URLs
+    tiers: [container]
+    controls: ["5.1.7"]
+    severity: medium
+    look_for: >
+      Access tokens, session ids, API keys or personal data passed in query strings or paths, where they
+      end up in logs and browser history.
+
+  - id: own-encryption-keys
+    title: The app manages its own encryption keys
+    tiers: [container]
+    controls: ["5.3.4"]
+    severity: medium
+    look_for: >
+      Code that generates, stores or rotates its own encryption keys instead of using the platform's
+      managed keys, and whether the keys are kept apart from the data they protect.
+
+  - id: rate-limiting
+    title: No rate limiting on public endpoints
+    tiers: [container]
+    controls: ["5.4.3", "5.11.6"]
+    severity: low
+    look_for: >
+      Endpoints reachable before sign-in, or expensive ones (search, export, LLM calls), with no rate
+      limit; and limits keyed only on IP address where a per-caller limit is possible.
+
+  - id: missing-audit-logging
+    title: Privileged actions and data changes not logged
+    tiers: [container]
+    controls: ["5.6.1", "5.6.2"]
+    severity: medium
+    look_for: >
+      Admin actions, data changes and deletions, and access to Restricted or Confidential records that
+      write no log entry saying who, what, which record, when and with what outcome.
+
+  - id: leaky-errors
+    title: Error responses reveal internals
+    tiers: [container]
+    controls: ["5.11.7"]
+    severity: low
+    look_for: >
+      Stack traces, file paths, SQL or raw database errors returned to callers instead of a plain message.
+
+  - id: api-review
+    title: OWASP API Security Top 10 and API contract
+    tiers: [container]
+    controls: ["5.11.4", "5.11.11"]
+    severity: low
+    look_for: >
+      For apps that expose an API: the OWASP API Security Top 10 items not covered elsewhere here (such as
+      mass assignment and excessive data exposure), and, as a recommendation only, a missing OpenAPI
+      contract.

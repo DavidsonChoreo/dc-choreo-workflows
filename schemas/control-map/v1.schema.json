@@ -4,37 +4,149 @@
   "title": "Choreo control map, version 1",
   "description": "control-map.yml: how each item in Information Security's review standard is met by a Choreo app. The assessor copies the app-scoped items into report.json's security section.",
   "type": "object",
-  "required": ["control_map", "standard", "controls"],
+  "required": [
+    "control_map",
+    "standard",
+    "controls"
+  ],
   "additionalProperties": false,
   "properties": {
-    "control_map": { "const": 1 },
-    "standard": { "description": "Which copy of the standard the item numbers come from.", "type": "string", "minLength": 10 },
-    "controls": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/control" } }
+    "control_map": {
+      "const": 1
+    },
+    "standard": {
+      "description": "Which copy of the standard the item numbers come from.",
+      "type": "string",
+      "minLength": 10
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/control"
+      }
+    }
   },
   "$defs": {
-    "met_by": { "enum": ["platform", "check", "flag", "attested", "n/a"] },
+    "met_by": {
+      "enum": [
+        "platform",
+        "check",
+        "flag",
+        "attested",
+        "n/a"
+      ]
+    },
     "control": {
       "type": "object",
-      "required": ["id", "summary", "scope", "how"],
+      "required": [
+        "id",
+        "summary",
+        "scope",
+        "how"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "description": "The item's number in the standard, which is its control ID in a report.", "type": "string", "pattern": "^[0-9]+(\\.[0-9]+){1,2}$" },
-        "summary": { "type": "string", "minLength": 3 },
-        "scope": { "description": "app: its answer depends on the app, so it's in every report. process: met by the same pipeline step for every app, so it's recorded here only.", "enum": ["app", "process"] },
+        "id": {
+          "description": "The item's number in the standard, which is its control ID in a report.",
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+){1,2}$"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 3
+        },
+        "scope": {
+          "description": "app: its answer depends on the app, so it's in every report. process: met by the same pipeline step for every app, so it's recorded here only.",
+          "enum": [
+            "app",
+            "process"
+          ]
+        },
         "met_by": {
           "description": "How the item is met, per hosting tier.",
           "type": "object",
-          "required": ["pages", "container"],
+          "required": [
+            "pages",
+            "container"
+          ],
           "additionalProperties": false,
-          "properties": { "pages": { "$ref": "#/$defs/met_by" }, "container": { "$ref": "#/$defs/met_by" } }
+          "properties": {
+            "pages": {
+              "$ref": "#/$defs/met_by"
+            },
+            "container": {
+              "$ref": "#/$defs/met_by"
+            }
+          }
         },
-        "how": { "description": "What meets it, in plain words, with where to look.", "type": "string", "minLength": 3 },
-        "precedence": { "description": "A Choreo decision that takes precedence over the standard's text for this item.", "type": "string" },
-        "gap": { "description": "What isn't built yet, so the item isn't fully met.", "type": "string" }
+        "how": {
+          "description": "What meets it, in plain words, with where to look.",
+          "type": "string",
+          "minLength": 3
+        },
+        "precedence": {
+          "description": "A Choreo decision that takes precedence over the standard's text for this item.",
+          "type": "string"
+        },
+        "gap": {
+          "description": "What isn't built yet, so the item isn't fully met.",
+          "type": "string"
+        },
+        "checks": {
+          "description": "For an item met_by check on any tier: the checks in checks/cli.js whose results decide its status.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "passport",
+              "license",
+              "tier",
+              "files",
+              "secrets",
+              "dependencies",
+              "audit",
+              "unused",
+              "code",
+              "indexing",
+              "accessibility",
+              "build",
+              "workspace"
+            ]
+          }
+        }
       },
       "allOf": [
-        { "if": { "properties": { "scope": { "const": "app" } } }, "then": { "required": ["met_by"] } },
-        { "if": { "properties": { "scope": { "const": "process" } } }, "then": { "not": { "required": ["met_by"] } } }
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "app"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "met_by"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "process"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "met_by"
+              ]
+            }
+          }
+        }
       ]
     }
   }
