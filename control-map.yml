@@ -1,0 +1,965 @@
+# How each item in Information Security's review standard is met by a Choreo app.
+# The assessor copies the `app` items into report.json's security section for the
+# app's tier and fills in status and evidence; `process` items are met by the same
+# pipeline step for every app, so they're recorded here once and left out of reports.
+# met_by: platform (the hosting module or the layer), check (a blocking CI check),
+# flag (an assessor judgment with evidence), attested (the builder confirms it at
+# the ready call), n/a (doesn't apply to the tier).
+# `precedence` notes a Choreo decision that takes precedence over the standard's
+# text; `gap` notes what isn't built yet.
+control_map: 1
+standard: 'AI/Vibe-Coded Application Review & Approval Standard, Platform Engineering''s numbered copy of 2026-10-12:
+  https://github.com/DavidsonCollege/platform-engineering/blob/main/docs/systems/infosec-ai-app-review-standard.md'
+controls:
+- id: '1.1'
+  summary: Application name and purpose
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `app` and `purpose`, required by the passport check.
+- id: '1.2'
+  summary: Builder name and department
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `app_owners` and `department`, required by the passport check.
+- id: '1.3'
+  summary: Assigned business owner
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `business_owner`, required by the passport check, which also fails when the business owner
+    is one of the app owners.
+- id: '1.4'
+  summary: Assigned T&I reviewer
+  scope: process
+  how: PE records the reviewer in the app's `spec.yaml` at the ready call; it's PE's record, not the owner's claim
+    (pipeline.md decision 4).
+- id: '1.5'
+  summary: Tools used to build it
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `built_with`, which the plugin fills in, required by the passport check.
+- id: '1.6'
+  summary: Where it runs
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `profile.tier`, required by the passport check; the tier check confirms the code matches it.
+- id: '1.7'
+  summary: Internet-facing or public audience
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `profile.audience` and `audience_scope`, required by the passport check.
+- id: '1.8'
+  summary: WAF and sign-in waiver, if granted
+  scope: process
+  how: 'Recorded by PE in `spec.yaml` with its reference, approver and expiry, outside the passport (decided on
+    #38).'
+- id: '1.9'
+  summary: Data classifications touched
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `profile.data_classification`, one of the four classes, required by the passport check; a
+    Pages site may only hold Public data.
+- id: '1.10'
+  summary: Custody plan
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `custody`, required by the passport check.
+- id: '1.11'
+  summary: Audience and brand designation
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `audience_scope` and `brand`, required by the passport check.
+- id: '1.12'
+  summary: Indexability, no by default
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `indexable`; the indexing check confirms the built site matches it.
+- id: '1.13'
+  summary: License
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `license`; the license check confirms a LICENSE file matches it.
+- id: '1.14'
+  summary: Review and recertification date
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `review`, required by the passport check; the renewal sweep acts on it.
+- id: '3.1'
+  summary: What data the app reads, stores or transmits
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: The passport names the classification and, in `retention`, each data type. The assessor compares that with
+    what the code actually handles and flags anything the passport doesn't cover.
+- id: '3.2'
+  summary: Each data type classified
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: 'As 3.1: the passport''s classification, checked by the assessor against the code.'
+- id: '3.3'
+  summary: US-based storage and processing, pinned regions
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module deploys every Azure resource to a pinned US region. A Pages site holds Public data only.
+- id: '3.4'
+  summary: Storage platform approved for the classification
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module's storage and key vault are RBAC-only and, for Restricted and Confidential apps, firewalled
+    to the AIToolsRestricted subnet in a US region. A Pages site has no storage.
+- id: '3.5'
+  summary: Confidential or Restricted data leaving Davidson infrastructure
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The assessor compares the passport's `integrations`, each with its own data classification, against the app's
+    classification and the code's outbound calls.
+- id: '3.6'
+  summary: 'External LLM with live data: provider retention and training terms'
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: The passport's `llm` says whether live data enters prompts; the builder confirms the provider's no-training
+    and retention terms at the ready call.
+- id: '3.7'
+  summary: Vendor review for any external service receiving Davidson data
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: The assessor checks each integration in the passport against the approved vendor list; discovery asks first
+    (#86).
+- id: '3.8'
+  summary: Data Processing Agreement where required
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: 'A ready-call attestation: a data processing agreement where a vendor needs one (#89).'
+- id: '3.9'
+  summary: Retention defined per data type, with automated deletion
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The passport's `retention`, required when the app writes data; the hosting module builds storage lifecycle
+    rules from it (Part 5).
+- id: '3.10'
+  summary: Applicable regulations identified
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `regulations`, required by the passport check; any match routes discovery to a human with
+    InfoSec and Legal (#86).
+- id: '4.1'
+  summary: No secrets or API keys in frontend code or repositories
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The secrets check scans the full git history with gitleaks; a finding blocks until rotated and removed from
+    history with PE (decision 35).
+- id: '4.2'
+  summary: Record-level security on every table
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: record-level security.'
+- id: '4.3'
+  summary: Authorization enforced server-side
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: client-side-only authorization. `AGENTS.md` rule 8 tells the coding agent to check authorization
+    on the server.'
+- id: '4.4'
+  summary: No admin tooling or debug endpoints exposed publicly
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: exposed admin and debug endpoints.'
+- id: '4.5'
+  summary: AES-256 encryption at rest for Confidential and Restricted data
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Azure Storage and Key Vault encrypt at rest with AES-256 by default.
+- id: '4.6'
+  summary: TLS 1.2 or later on all connections
+  scope: app
+  met_by:
+    pages: platform
+    container: platform
+  how: Container Apps and GitHub Pages serve HTTPS only, with TLS 1.2 minimum set by the hosting module; the code
+    check fails any plain `http://` call.
+- id: '4.7'
+  summary: WAF and Davidson SSO in front of internet-facing apps
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Platform sign-in through Davidson SSO on every container app; Restricted and Confidential apps sit behind
+    the WAF, Public and Internal apps don't. A Pages site is Public with no sign-in.
+  precedence: 'Decision of 2026-10-12 on #85 takes precedence: Public and Internal apps have no WAF; every Restricted
+    and Confidential app sits behind it, including one reachable only from campus and VPN.'
+- id: '4.8'
+  summary: Davidson SSO, no homegrown login
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Container Apps' built-in authentication with Davidson's Entra tenant, enforced by the platform rather than
+    app code; `AGENTS.md` rule 8 forbids homegrown login.
+- id: '4.9'
+  summary: Phishing-resistant MFA above Public data
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Davidson SSO with Duo MFA.
+  precedence: 'Decision of 2026-10-12 on #85 takes precedence: Choreo apps use Davidson SSO with Duo; the phishing-resistant
+    requirement doesn''t apply, and PE is raising it with InfoSec.'
+- id: '4.10'
+  summary: No non-public data or derived artifacts in a repository that goes public
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: The assessor's full-history scan for real-data artifacts (samples, exports, screenshots, log excerpts, internal
+    hostnames) before the repository goes public; `AGENTS.md` rule 5 forbids them.
+- id: 5.1.1
+  summary: Davidson SSO integration in place
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: As 4.8.
+- id: 5.1.2
+  summary: MFA enforced, including for admin roles at any tier
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: 'As 4.9: every sign-in goes through Davidson SSO with Duo, whatever the role.'
+- id: 5.1.3
+  summary: Roles defined explicitly and mapped to what each user sees
+  scope: app
+  met_by:
+    pages: n/a
+    container: check
+  how: The passport's `roles`, which a container app must list; they become its Entra app roles.
+- id: 5.1.4
+  summary: 'Authorization tested: a lower role can''t act as a higher one'
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: A ready-call attestation (#89); the assessor's client-side-authorization flag (4.3) backs it.
+- id: 5.1.5
+  summary: Access roster reviewed at least quarterly
+  scope: process
+  how: 'Quarterly access review reminder (Part 13, #36).'
+- id: 5.1.6
+  summary: Access revoked within 24 hours of leaving
+  scope: process
+  how: App roles are Entra group assignments, so removal follows Entra offboarding; Choreo org membership is reconciled
+    monthly (#87).
+- id: 5.1.7
+  summary: Session expiration; no tokens in URLs
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: Sessions come from the platform's authentication; the assessor flags tokens or secrets passed in URLs.
+- id: 5.2.1
+  summary: The app's own permissions are the narrowest that work
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: overly broad OAuth scopes and permissions.'
+- id: 5.2.2
+  summary: AI-generated integrations not defaulted to broad scopes
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: As 5.2.1.
+- id: 5.2.3
+  summary: Application permissions documented with a rationale
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: Each passport integration names its purpose; the builder confirms the permissions and their reasons at the
+    ready call.
+- id: 5.2.4
+  summary: A dedicated credential per integration or service account
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Each app has its own managed identity and its own key vault.
+- id: 5.2.5
+  summary: Service credentials in 1Password or replaced by managed identity; rotated
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Managed identity where Azure supports it; any remaining secret lives in the app's key vault. `AGENTS.md`
+    rule 6.
+- id: 5.2.6
+  summary: Own managed identity; RBAC at resource scope
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module gives each app its own managed identity with roles assigned on its own resources only.
+- id: 5.3.1
+  summary: Secrets in 1Password or Key Vault, never in code or repositories
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The secrets check; runtime secrets live in the app's key vault, read with its managed identity.
+- id: 5.3.2
+  summary: A committed secret is rotated immediately
+  scope: process
+  how: 'Decision 35: PE works with the builder to rotate it and rewrite the history before deployment; the exposed-secret
+    runbook (#36).'
+- id: 5.3.3
+  summary: Runtime secrets from Key Vault with managed identity; one vault per app, RBAC mode
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module creates one RBAC-mode key vault per app, read through Key Vault references with the app's
+    managed identity.
+- id: 5.3.4
+  summary: 'App-managed encryption keys: procedures documented, keys stored apart'
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: Choreo apps use platform-managed keys; the assessor flags any app that manages its own.
+- id: 5.3.5
+  summary: Deployment tokens stored as protected environment secrets
+  scope: app
+  met_by:
+    pages: n/a
+    container: n/a
+  how: Choreo deploys with OIDC federated credentials, so there are no deployment tokens to store. Static Web Apps
+    are out of scope.
+- id: 5.3.6
+  summary: Storage shared-key access disabled
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module disables shared-key access on every storage account.
+- id: 5.4.1
+  summary: WAF and SSO actually in the traffic path; origin not directly reachable
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: 'As 4.7: Restricted and Confidential apps accept traffic only from the WAF.'
+  precedence: As 4.7.
+- id: 5.4.2
+  summary: CORS not wildcarded
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The code check fails CORS open to any origin.
+- id: 5.4.3
+  summary: Rate limiting on public-facing endpoints
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The assessor flags public endpoints without rate limiting.
+- id: 5.4.4
+  summary: Key vaults and storage closed to the internet; firewalled to the subnet
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module closes public network access and, for Restricted and Confidential apps, firewalls them
+    to AIToolsRestricted.
+- id: 5.4.5
+  summary: Minimum TLS 1.2 set explicitly
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Set explicitly by the hosting module on storage and Container Apps.
+- id: 5.4.6
+  summary: Egress reviewed; unrestricted egress only as a documented decision
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The assessor compares outbound calls in the code with the passport's `integrations`.
+- id: 5.5.1
+  summary: Parameterized queries only
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: injection.'
+- id: 5.5.2
+  summary: Output encoding against XSS
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: 'Security rubric: injection, including XSS in client-rendered pages.'
+- id: 5.5.3
+  summary: No user input in shell or system calls
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: injection.'
+- id: 5.5.4
+  summary: Prompt injection can't alter instructions or trigger tools
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: 'Security rubric: prompt injection, run when the passport''s `llm` is set.'
+- id: 5.5.5
+  summary: File upload validation, isolation and malware scanning
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: file uploads.'
+- id: 5.6.1
+  summary: Logs capture authentication, privileged actions, data access and changes
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: Sign-ins are logged by Entra and the platform; the assessor flags apps whose privileged actions and data
+    changes aren't logged.
+- id: 5.6.2
+  summary: 'Each log entry: who, what, resource, when, outcome'
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: As 5.6.1.
+- id: 5.6.3
+  summary: 12-month log retention
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Set by the hosting module on the app's Log Analytics workspace.
+- id: 5.6.4
+  summary: Logs tamper-evident
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: Logs leave the app for Log Analytics and the SIEM, where the app's identity can't change them.
+- id: 5.6.5
+  summary: Logs retrievable by InfoSec within a day or two
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: As 5.6.6.
+- id: 5.6.6
+  summary: Azure diagnostic logs forwarded to the SIEM
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The hosting module's diagnostic settings forward Key Vault, storage, Entra sign-in and app logs to the T&I
+    SIEM.
+- id: 5.6.7
+  summary: Anomalous-access alerting for Confidential data
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: 'Defender alerting on Confidential apps'' resources (decisions on #85).'
+- id: 5.7.1
+  summary: 'Patching: critical and high in 72 hours, the rest in 30 days'
+  scope: process
+  how: 'The findings sweep against the 72-hour and 30-day deadlines (Part 13, #36), and oversight''s security rubric
+    (#91).'
+- id: 5.7.2
+  summary: No end-of-life runtime or framework
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The dependency check fails a Node or Python version past end of life, from `engines`, `.nvmrc` and the Containerfile.
+- id: 5.7.3
+  summary: Endpoint protection on machines that access Davidson data
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: 'A ready-call attestation: a patched development machine running endpoint protection (#89).'
+- id: 5.7.4
+  summary: Developer devices meet the patching standard
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: As 5.7.3.
+- id: 5.8.1
+  summary: Every new dependency exists on the registry
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The dependency check looks each new dependency up on npm, failing a missing one and warning on one published
+    in the last 30 days.
+- id: 5.8.2
+  summary: Every dependency explained; unused ones removed
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The build job runs knip and warns on unused dependencies; `AGENTS.md` rule 3 asks the builder to be able
+    to explain each one.
+- id: 5.8.3
+  summary: Dependency auto-merge disabled
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The dependency check fails any workflow that turns on auto-merge.
+- id: 5.8.4
+  summary: Production dependencies pinned exactly
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The build job requires a lockfile and installs with `npm ci`; the package writes exact versions and `save-exact`.
+  gap: The checks don't yet fail a floating specifier, such as `^1.2.0`, in package.json.
+- id: 5.8.5
+  summary: Changelog and CVEs reviewed before merging an update
+  scope: process
+  how: The pull-request review comment gives Dependabot updates a changelog and CVE summary (#35), and auto-merge
+    is off, so a person merges after reading it.
+- id: 5.8.6
+  summary: Dependency updates tested in non-production first
+  scope: process
+  how: 'Open with InfoSec: whether CI tests count as the non-production test (plan.md, "Open with Information Security").'
+- id: 5.8.7
+  summary: SBOM generated at each release and stored
+  scope: app
+  met_by:
+    pages: platform
+    container: platform
+  how: Planned with the deploy workflow.
+  gap: Nothing generates an SBOM yet.
+- id: 5.8.8
+  summary: Subscribed to security advisories for dependencies
+  scope: app
+  met_by:
+    pages: platform
+    container: platform
+  how: Dependabot alerts on every hosted repository; the report pulls in open alerts (#35).
+- id: 5.9.1
+  summary: The build agent didn't hold dev and prod credentials together
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: '`AGENTS.md` rule 6: the agent never holds production credentials. The builder confirms it at the ready call.'
+- id: 5.9.2
+  summary: Destructive actions needed human approval during the build
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: '`AGENTS.md` rule 7: schema changes, data deletion and deploys need the builder''s explicit approval.'
+- id: 5.9.3
+  summary: Production deploys use OIDC to a protected environment with a required reviewer
+  scope: app
+  met_by:
+    pages: platform
+    container: platform
+  how: Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from
+    `main`.
+  precedence: Decision 25 (2026-10-12) has builders merge their own pull requests once the checks pass, and deploys
+    run from `main` with no required reviewer. This item's required reviewer conflicts with it; to raise with InfoSec.
+- id: 5.9.4
+  summary: No Davidson data used to train any AI model
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: A ready-call attestation; Claude Enterprise doesn't train on customer data.
+- id: 5.9.5
+  summary: AI vendor configured not to train; only sanitized data in public AI tools
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: 'A ready-call attestation: only sanitized data in AI tools other than Claude Enterprise (#89).'
+- id: 5.10.1
+  summary: WCAG 2.1 Level AA
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The accessibility check runs axe's WCAG 2.0 A and AA rules on the built pages; any violation fails (decision
+    36).
+  precedence: Decision 36 (2026-10-12) sets WCAG 2.0 AA, which Davidson is bound to; this item says 2.1 AA. To reconcile
+    with InfoSec.
+- id: 5.10.2
+  summary: Semantic HTML; everything works by keyboard
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: 'A ready-call attestation: a manual keyboard and screen-reader pass (#89); axe catches part of it automatically.'
+- id: 5.10.3
+  summary: Color contrast checked with a tool
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: axe's color-contrast rule, in the accessibility check.
+- id: 5.10.4
+  summary: Text alternatives for non-text content
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: axe's image-alt and related rules, in the accessibility check.
+- id: 5.10.5
+  summary: Automated accessibility testing in CI
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The accessibility check runs axe in Chrome on every pull request and at the publish request.
+- id: 5.10.6
+  summary: Manual screen-reader and keyboard testing
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: As 5.10.2.
+- id: 5.10.7
+  summary: A VPAT for any vendor UI or embed
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: The builder confirms one at the ready call when the app embeds a vendor's interface.
+- id: 5.11.1
+  summary: Every endpoint touching Davidson data requires authentication
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: The platform's authentication sits in front of every route of a container app, so no endpoint is reachable
+    unauthenticated.
+- id: 5.11.2
+  summary: RBAC implemented and tested
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: As 5.1.4.
+- id: 5.11.3
+  summary: No endpoint protected only by an unguessable URL
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: endpoints protected only by an unguessable URL.'
+- id: 5.11.4
+  summary: OWASP API Security Top 10 reviewed
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The security rubric covers the Top 10 items that apply.
+- id: 5.11.5
+  summary: Input validation and output encoding on every endpoint
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: injection and unvalidated input.'
+- id: 5.11.6
+  summary: Rate limiting per caller
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: As 5.4.3.
+- id: 5.11.7
+  summary: Error responses sanitized
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The assessor flags stack traces, file paths or raw database errors returned to callers.
+- id: 5.11.8
+  summary: Incoming webhooks verify signatures
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: 'Security rubric: webhook signatures.'
+- id: 5.11.9
+  summary: API documentation available to other Davidson teams
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: The builder confirms it at the ready call when the app exposes an API to others.
+- id: 5.11.10
+  summary: Rate limits on other Davidson teams documented first
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: As 5.11.9.
+- id: 5.11.11
+  summary: Machine-readable API contract (recommended)
+  scope: app
+  met_by:
+    pages: n/a
+    container: flag
+  how: The assessor notes a missing OpenAPI contract as a low-severity flag, since the item is a recommendation.
+- id: 5.12.1
+  summary: Each external API on the approved vendor list
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: As 3.7.
+- id: 5.12.2
+  summary: TLS 1.2 or later on outbound calls
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The code check fails plain `http://` calls.
+- id: 5.12.3
+  summary: Outbound API keys stored in 1Password
+  scope: app
+  met_by:
+    pages: check
+    container: platform
+  how: In the app's key vault, accepted as equal or stronger per 5.3.1; a Pages site holds no keys, which the secrets
+    check confirms.
+- id: 5.12.4
+  summary: Defined expiration and rotation for API credentials
+  scope: app
+  met_by:
+    pages: n/a
+    container: attested
+  how: The builder confirms the rotation cadence for each integration's credential at the ready call.
+- id: 5.12.5
+  summary: Data from external APIs validated, including for prompt injection
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: 'Security rubric: unvalidated data from outside APIs.'
+- id: '6.1'
+  summary: History scanned for secrets before going public
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The secrets check scans the full history at the publish request, before the repository goes public.
+- id: '6.2'
+  summary: No non-public data or derived artifacts anywhere in the repository or history
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: As 4.10.
+- id: '6.3'
+  summary: Non-public development data kept outside the repository
+  scope: app
+  met_by:
+    pages: attested
+    container: attested
+  how: A ready-call attestation; `AGENTS.md` rule 5.
+- id: '6.4'
+  summary: Comments and docs reveal no internal infrastructure
+  scope: app
+  met_by:
+    pages: flag
+    container: flag
+  how: The assessor's full-history scan includes comments and documentation; the passport names integrations by
+    platform, never hostname.
+- id: '6.5'
+  summary: A private repository's justification documented
+  scope: process
+  how: Hosted Choreo apps are public; a private exception is a conversation with PE, recorded in `spec.yaml`.
+- id: '7.1'
+  summary: Secure transfer methods only
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The code check fails plain `http://`; the platform serves HTTPS only.
+- id: '7.2'
+  summary: Retention per data category, with automated deletion
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: As 3.9.
+- id: '7.3'
+  summary: File aging for file-based integrations
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: 'As 3.9: storage lifecycle rules delete files after the retention window.'
+- id: '7.4'
+  summary: 'Decommissioning: data destroyed within 30 days of retirement, documented'
+  scope: process
+  how: 'The renewal sweep and sunset runbook: data destroyed within 30 days of retirement with a written record
+    (Part 13, #36).'
+- id: '8.1'
+  summary: Applicable regulatory frameworks identified
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: As 3.10.
+- id: '8.2'
+  summary: Legal and InfoSec consulted before build where frameworks apply
+  scope: process
+  how: Discovery routes any regulated data to a human, with InfoSec and Legal, before the build starts (#86).
+- id: '8.3'
+  summary: Incident notification owner identified
+  scope: app
+  met_by:
+    pages: check
+    container: check
+  how: The passport's `incident_contact`, required by the passport check.
+- id: '9.1'
+  summary: Tier-1 gate passed
+  scope: process
+  how: The publish request's checks and the assessor's report (Section 4 items above).
+- id: '9.2'
+  summary: Data classification complete
+  scope: process
+  how: Information Security's review of the report at the ready call.
+- id: '9.3'
+  summary: Pre-deployment code review completed
+  scope: process
+  how: Information Security's review of the report's security section at the ready call.
+- id: '9.4'
+  summary: Repository and publication standards confirmed
+  scope: process
+  how: The Section 6 items above, reviewed at the ready call.
+- id: '9.5'
+  summary: Data lifecycle plan documented
+  scope: process
+  how: The Section 7 items above, reviewed at the ready call.
+- id: '9.6'
+  summary: Regulatory considerations reviewed
+  scope: process
+  how: The Section 8 items above, reviewed at the ready call.
+- id: '9.7'
+  summary: Business owner confirmed in the passport
+  scope: process
+  how: The passport's `business_owner`, confirmed at the ready call.
+- id: '9.8'
+  summary: Approvals recorded against the passport's exact content
+  scope: process
+  how: The stamping script records approvals in `spec.yaml` and the approved passport's hash in `approved-passport-sha`
+    (#89).
+- id: '9.9'
+  summary: Approver and date
+  scope: process
+  how: The Kuali ready-call form records each approver and date (#89).
+- id: '10.1'
+  summary: Continuous vulnerability scanning once live
+  scope: app
+  met_by:
+    pages: platform
+    container: platform
+  how: CodeQL, Dependabot and secret scanning on every hosted repository, which is public; oversight's security
+    rubric reads their alerts monthly (#91).
+- id: '10.2'
+  summary: Container images scanned continuously
+  scope: app
+  met_by:
+    pages: n/a
+    container: platform
+  how: 'Defender for container registries (decisions on #85).'
+- id: '10.3'
+  summary: Critical and high findings remediated on the patching SLA
+  scope: process
+  how: As 5.7.1.
+- id: '10.4'
+  summary: Periodic penetration testing
+  scope: process
+  how: 'The pen test between approval and go-live, and the annual retest for High-tier apps (#89, #36).'
+- id: '10.5'
+  summary: Re-review on any material change
+  scope: process
+  how: A change to a passport field in `x-ready-call-fields` re-runs the ready call; oversight's drift check catches
+    changes the passport doesn't show (#91).
+- id: '10.6'
+  summary: Access roster reviewed quarterly; unowned apps flagged
+  scope: process
+  how: As 5.1.5; oversight's health rubric flags apps whose owners have left (#91).
+- id: '10.7'
+  summary: Annual recertification; unrecertified apps retire within a month
+  scope: process
+  how: 'The renewal sweep (pipeline.md decision 16, #36).'
+- id: '10.8'
+  summary: Each deploy confirms the passport is unchanged since approval
+  scope: process
+  how: The deploy workflow refuses a passport whose hash isn't `approved-passport-sha`.
