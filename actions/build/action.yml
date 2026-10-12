@@ -1,5 +1,5 @@
 name: Choreo build check
-description: Checks dependencies and runtimes, then builds a paved-road app from its lockfile, checks it for known vulnerabilities and unused dependencies, and checks the built site's indexing against the passport.
+description: Checks dependencies, runtimes and code, then builds a paved-road app from its lockfile, checks it for known vulnerabilities and unused dependencies, and checks the built site's indexing and accessibility (WCAG 2.0 AA).
 
 inputs:
   working-directory:
@@ -28,6 +28,10 @@ runs:
           export BASE_PACKAGE_JSON="$RUNNER_TEMP/base-package.json"
         fi
         node "$GITHUB_ACTION_PATH/../../checks/cli.js" dependencies
+    - name: Check the code for plain http:// and open CORS
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" code
     - name: Decide whether to build
       id: plan
       shell: bash
@@ -63,6 +67,11 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" indexing
+    - name: Check accessibility (WCAG 2.0 AA)
+      if: steps.plan.outputs.build == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" accessibility
     - name: Explain a failed install or build
       if: failure() && (steps.install.outcome == 'failure' || steps.build.outcome == 'failure')
       shell: bash
