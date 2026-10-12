@@ -203,7 +203,7 @@ function runUnused() {
 // registry can't be reached.
 async function lookUpPackage(name) {
   try {
-    const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2F')}`);
+    const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
     if (response.status === 404) return { name, exists: false };
     if (!response.ok) return null;
     const { time } = await response.json();
