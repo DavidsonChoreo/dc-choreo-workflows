@@ -265,3 +265,25 @@ test('files: a CODEOWNERS that drops the team is annotated on CODEOWNERS', () =>
   assert.equal(result.status, 1);
   assert.match(result.errors[0], /^::error file=\.github\/CODEOWNERS,/);
 });
+
+test('dependencies: a workflow that auto-merges fails, annotated on that workflow', () => {
+  const result = run('dependencies', {
+    ...goodApp,
+    '.github/workflows/auto.yml': 'jobs:\n  m:\n    steps:\n      - run: gh pr merge --auto "$URL"\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.errors.join('\n'), /file=\.github\/workflows\/auto\.yml/);
+});
+
+test('dependencies: an app with no package.json and a supported base image passes', () => {
+  const result = run('dependencies', goodApp);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('unused: a knip report with an unused dependency warns', () => {
+  const report = JSON.stringify({ issues: [{ file: 'package.json', dependencies: [{ name: 'left-pad' }] }] });
+  const result = run('unused', { ...goodApp, '.knip.json': report }, { KNIP_REPORT: '{dir}/.knip.json' });
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /left-pad/);
+});

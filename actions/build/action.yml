@@ -1,5 +1,5 @@
 name: Choreo build check
-description: Builds a paved-road app from its lockfile, checks its dependencies for known vulnerabilities, and checks the built site's indexing against the passport.
+description: Checks dependencies and runtimes, then builds a paved-road app from its lockfile, checks it for known vulnerabilities and unused dependencies, and checks the built site's indexing against the passport.
 
 inputs:
   working-directory:
@@ -16,6 +16,18 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}/../..
       run: npm ci --omit=dev --no-audit --no-fund --loglevel=error
+    - name: Check dependencies and runtimes
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        # On a pull request, compare with the base branch's package.json.
+        if [ -n "$BASE_REF" ] && git fetch -q --depth=1 origin "$BASE_REF" 2>/dev/null \
+          && git show "FETCH_HEAD:./package.json" > "$RUNNER_TEMP/base-package.json" 2>/dev/null; then
+          export BASE_PACKAGE_JSON="$RUNNER_TEMP/base-package.json"
+        fi
+        node "$GITHUB_ACTION_PATH/../../checks/cli.js" dependencies
     - name: Decide whether to build
       id: plan
       shell: bash
@@ -32,6 +44,14 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" audit
+    - name: Look for unused dependencies
+      if: steps.plan.outputs.build == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        "$GITHUB_ACTION_PATH/../../node_modules/.bin/knip" --dependencies --reporter json --no-exit-code \
+          > "$RUNNER_TEMP/knip.json" 2>/dev/null || rm -f "$RUNNER_TEMP/knip.json"
+        KNIP_REPORT="$RUNNER_TEMP/knip.json" node "$GITHUB_ACTION_PATH/../../checks/cli.js" unused
     - name: Build the app
       id: build
       if: steps.plan.outputs.build == 'true'

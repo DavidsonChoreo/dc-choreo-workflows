@@ -14,6 +14,7 @@ import { checkFiles, checkCodeowners } from './files.js';
 import { explainSecrets } from './secrets.js';
 import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
+import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from './dependencies.js';
 
 const CHECKS = {
   passport: { title: 'Passport', run: runPassport },
@@ -24,6 +25,8 @@ const CHECKS = {
   'build-plan': { title: 'Build', run: runBuildPlan },
   audit: { title: 'Dependencies', run: runAudit },
   indexing: { title: 'Indexing', run: runIndexing },
+  dependencies: { title: 'Dependencies', run: runDependencies },
+  unused: { title: 'Dependencies', run: runUnused },
 };
 
 const name = process.argv[2];
@@ -146,6 +149,73 @@ function runAudit() {
     return { file: 'package-lock.json', problems: ['`npm audit` couldn\'t run, so the dependencies weren\'t checked for known vulnerabilities. Re-run the checks; if it happens again, ask Platform Engineering.'], warnings: [] };
   }
   return { file: 'package-lock.json', ...explainAudit(report) };
+}
+
+// New dependencies on the registry, auto-merge in workflows, and runtimes
+// past end of life. Needs no install. $BASE_PACKAGE_JSON names the base
+// branch's package.json on a pull request; without it every dependency is new.
+async function runDependencies() {
+  const read = (path) => (existsSync(path) ? readFileSync(path, 'utf8') : null);
+  const packageJson = read('package.json') ? JSON.parse(read('package.json')) : null;
+  const base = process.env.BASE_PACKAGE_JSON && existsSync(process.env.BASE_PACKAGE_JSON)
+    ? JSON.parse(readFileSync(process.env.BASE_PACKAGE_JSON, 'utf8'))
+    : null;
+  const now = new Date();
+  const results = [];
+
+  const lookups = await Promise.all(newDependencies(base, packageJson).map(lookUpPackage));
+  results.push(tag('package.json', checkRegistry(lookups.filter(Boolean), now)));
+  const unreachable = lookups.filter((l) => l === null).length;
+  if (unreachable) results.push({ problems: [], warnings: [`The npm registry couldn't be reached for ${unreachable} new ${unreachable === 1 ? 'dependency' : 'dependencies'}, so ${unreachable === 1 ? 'it wasn\'t' : 'they weren\'t'} checked. Re-run the checks.`] });
+
+  const workflowDir = '.github/workflows';
+  const workflows = existsSync(workflowDir)
+    ? listFiles(workflowDir).filter((p) => /\.ya?ml$/.test(p)).map((p) => ({ path: `${workflowDir}/${p}`, text: readFileSync(join(workflowDir, p), 'utf8') }))
+    : [];
+  results.push(checkAutoMerge(workflows));
+
+  const runtimes = runtimesOf({ packageJson, nvmrc: read('.nvmrc'), containerfile: read('Containerfile') ?? read('Dockerfile') });
+  if (runtimes.length > 0) {
+    try {
+      const products = [...new Set(runtimes.map((r) => r.product))];
+      const cycles = Object.fromEntries(await Promise.all(products.map(async (product) => {
+        const response = await fetch(`https://endoflife.date/api/${product}.json`);
+        if (!response.ok) throw new Error(String(response.status));
+        return [product, await response.json()];
+      })));
+      results.push(tag('package.json', checkEndOfLife(runtimes, cycles, now)));
+    } catch {
+      results.push({ problems: [], warnings: ['endoflife.date couldn\'t be reached, so the runtime versions weren\'t checked for end of life. Re-run the checks.'] });
+    }
+  }
+
+  return { file: 'package.json', problems: results.flatMap((r) => r.problems), warnings: results.flatMap((r) => r.warnings) };
+}
+
+// Explains the knip report the build job wrote to $KNIP_REPORT.
+function runUnused() {
+  const path = process.env.KNIP_REPORT ?? 'knip-report.json';
+  if (!existsSync(path)) return { file: 'package.json', problems: [], warnings: ['The unused-dependency scan produced no report, so it was skipped.'] };
+  return { file: 'package.json', ...explainUnused(JSON.parse(readFileSync(path, 'utf8'))) };
+}
+
+// One package's registry facts: { name, exists, created }, or null when the
+// registry can't be reached.
+async function lookUpPackage(name) {
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2F')}`);
+    if (response.status === 404) return { name, exists: false };
+    if (!response.ok) return null;
+    const { time } = await response.json();
+    return { name, exists: true, created: time?.created };
+  } catch {
+    return null;
+  }
+}
+
+// Gives string problems a file, so they're annotated where they belong.
+function tag(file, result) {
+  return { ...result, problems: result.problems.map((message) => (typeof message === 'string' ? { message, file } : message)) };
 }
 
 // Reads the built site from .output: static pages for a Pages site, or the
