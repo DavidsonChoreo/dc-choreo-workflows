@@ -1,0 +1,27 @@
+name: Choreo check
+description: Runs one Choreo check at an app's root, with messages written for builders.
+
+inputs:
+  check:
+    description: "Which check to run: passport, license, tier or files."
+    required: true
+  working-directory:
+    description: The app's root. The checkout's root by default.
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 22
+    - name: Install the checks
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: npm ci --omit=dev --no-audit --no-fund --loglevel=error
+    - name: Run the ${{ inputs.check }} check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK: ${{ inputs.check }}
+      run: node "$GITHUB_ACTION_PATH/../../checks/cli.js" "$CHECK"

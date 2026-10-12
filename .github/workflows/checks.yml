@@ -34,4 +34,48 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           token: ${{ secrets.repository_token || github.token }}
           persist-credentials: false
-      - uses: DavidsonChoreo/dc-choreo-workflows/actions/passport@v1
+      - uses: DavidsonChoreo/dc-choreo-workflows/actions/check@v1
+        with:
+          check: passport
+
+  license:
+    name: license
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
+          token: ${{ secrets.repository_token || github.token }}
+          persist-credentials: false
+      - uses: DavidsonChoreo/dc-choreo-workflows/actions/check@v1
+        with:
+          check: license
+
+  tier:
+    name: tier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
+          token: ${{ secrets.repository_token || github.token }}
+          persist-credentials: false
+      - uses: DavidsonChoreo/dc-choreo-workflows/actions/check@v1
+        with:
+          check: tier
+
+  files:
+    name: files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref || github.sha }}
+          token: ${{ secrets.repository_token || github.token }}
+          persist-credentials: false
+      - uses: DavidsonChoreo/dc-choreo-workflows/actions/check@v1
+        with:
+          check: files

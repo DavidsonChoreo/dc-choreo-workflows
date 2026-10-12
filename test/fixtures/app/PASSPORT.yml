@@ -1,0 +1,43 @@
+# A container app holding Internal data, on the paved road.
+passport: 1
+app: academic-deadlines
+purpose: >
+  Shows students and advisers the add, drop and withdrawal deadlines that apply
+  to each course section, and lets the Registrar's Office post exceptions.
+app_owners:
+  - { name: Dana Example, email: daexample@davidson.edu }
+business_owner: { name: Morgan Example, email: moexample@davidson.edu }
+incident_contact: { name: Dana Example, email: daexample@davidson.edu }
+department: Registrar's Office
+custody: >
+  If the app owners leave, the department head names a successor within 30 days.
+  Otherwise the app sunsets at the next review date.
+created: "2026-10-12"
+review: "2027-10-12"
+profile:
+  door: interact
+  driver: person
+  audience: campus
+  clearance: true
+  data_classification: internal
+  source: one-system
+  writes: own-records
+  consumption: web
+  tier: container
+audience_scope: internal
+brand: unbranded
+indexable: false
+custom_domain: null
+license: Apache-2.0
+road: paved
+stack: nuxt
+scaffolded_with: "@davidson/create-choreo-app@1.0.0"
+build_environment: host-node
+built_with: davidson-choreo@1.0.0
+risk_tier: low
+regulations: []
+roles: [viewer, registrar]
+integrations: []
+llm: null
+retention:
+  - { data: deadline exceptions, keep_days: 730 }

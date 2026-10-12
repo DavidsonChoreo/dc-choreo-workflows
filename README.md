@@ -11,10 +11,14 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `schemas/passport/v1.schema.json` | The passport: `PASSPORT.yml` at the root of every hosted repository, holding the owner's claims about the app |
 | `schemas/report/v1.schema.json` | The assessor's report, which Information Security, College Communications and Platform Engineering each approve from |
 | `examples/` | A valid example of each |
-| `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner, with messages written for builders |
-| `checks/passport-cli.js` | Runs the passport check at an app's root and reports each problem as an annotation on `PASSPORT.yml` |
-| `test/` | Tests for the checks, run with `npm test` |
-| `actions/passport/` | The passport check as a composite action, so a run always uses the scripts from its own version |
+| `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner |
+| `checks/license.js` | A `LICENSE` file that matches the passport's `license`; Apache-2.0, MIT and BSD-3-Clause pass, others pass with a warning for review |
+| `checks/tier.js` | The code matches the tier: no `server/` on Pages; on a container app, a Containerfile with digest-pinned base images, a non-root final user and a healthcheck |
+| `checks/files.js` | `AGENTS.md` and `CLAUDE.md` match a released canonical copy |
+| `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
+| `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
+| `actions/check/` | The checks as one composite action, so a run always uses the scripts from its own version |
+| `test/` | Tests for the checks, run with `npm test`, and `test/fixtures/app`, a sample app that passes every check |
 | `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
 | `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |
 
@@ -46,6 +50,12 @@ Apps call `@v1`, a tag that moves forward with each compatible release, so fixes
 - **One passport rule lives outside the schema.** The business owner can't also be an app owner. JSON Schema can't compare two fields, so the passport check (`checks/passport.js`) enforces it.
 - **The passport hash** in a report is the SHA-256 of `PASSPORT.yml`'s bytes.
 - **Control IDs** in a report's security section are item numbers from Information Security's review standard, such as `4.3` for server-side authorization or `5.1.4` for testing that a lower role can't act as a higher one. Platform Engineering numbers the items in its copy of the standard.
+
+## Canonical governance files
+
+`AGENTS.md` and `CLAUDE.md` belong to Platform Engineering, and every app carries a copy written by the package. An app passes when its copy matches **any** released version, so apps scaffolded with an older package still pass until they update.
+
+When a package release changes either file, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. `hashOf` in `checks/files.js` computes it.
 
 ## Working on the checks
 
