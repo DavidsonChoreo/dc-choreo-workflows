@@ -19,6 +19,7 @@ const goodApp = {
   LICENSE: readFileSync(apache, 'utf8'),
   Containerfile: `FROM node:22-slim@sha256:${'a'.repeat(64)}\nUSER node\nHEALTHCHECK CMD true\n`,
   'app.vue': '<template><main /></template>\n',
+  '.github/CODEOWNERS': readFileSync(fixture('../canonical/CODEOWNERS'), 'utf8'),
 };
 
 // Runs one check in a fresh directory, the way CI runs it at an app's root.
@@ -246,4 +247,21 @@ test('indexing: no build output fails', () => {
   const result = run('indexing', goodApp);
   assert.equal(result.status, 1);
   assert.match(result.errors[0], /\.output/);
+});
+
+test('files: a missing CODEOWNERS fails', () => {
+  const result = run('files', without('.github/CODEOWNERS'));
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /CODEOWNERS/);
+});
+
+test('files: CODEOWNERS at the root is found as well as in .github', () => {
+  const result = run('files', { ...without('.github/CODEOWNERS'), CODEOWNERS: goodApp['.github/CODEOWNERS'] });
+  assert.equal(result.status, 0, result.stdout);
+});
+
+test('files: a CODEOWNERS that drops the team is annotated on CODEOWNERS', () => {
+  const result = run('files', { ...goodApp, '.github/CODEOWNERS': goodApp['.github/CODEOWNERS'] + '* @someone\n' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /^::error file=\.github\/CODEOWNERS,/);
 });

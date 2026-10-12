@@ -10,7 +10,7 @@ import { parseDocument } from 'yaml';
 import { checkPassport } from './passport.js';
 import { checkLicense } from './license.js';
 import { checkTier } from './tier.js';
-import { checkFiles } from './files.js';
+import { checkFiles, checkCodeowners } from './files.js';
 import { explainSecrets } from './secrets.js';
 import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
@@ -78,9 +78,18 @@ function runFiles() {
   const files = Object.fromEntries(
     ['AGENTS.md', 'CLAUDE.md'].map((path) => [path, existsSync(path) ? readFileSync(path, 'utf8') : null]),
   );
-  const result = checkFiles({ files, hashes });
-  const edited = Object.keys(files).find((path) => result.problems.some((p) => p.includes(`\`${path}\``)));
-  return { file: edited ?? 'AGENTS.md', ...result };
+  const governed = checkFiles({ files, hashes });
+  const problems = governed.problems.map((message) => ({
+    message,
+    file: Object.keys(files).find((path) => message.includes(`\`${path}\``)) ?? 'AGENTS.md',
+  }));
+
+  // GitHub reads the first CODEOWNERS it finds, in this order.
+  const codeownersPath = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'].find((path) => existsSync(path));
+  const codeowners = checkCodeowners(codeownersPath ? readFileSync(codeownersPath, 'utf8') : null);
+  problems.push(...codeowners.problems.map((message) => ({ message, file: codeownersPath ?? '.github/CODEOWNERS' })));
+
+  return { file: 'AGENTS.md', problems, warnings: [] };
 }
 
 // Explains the gitleaks report the secrets job wrote to $GITLEAKS_REPORT.

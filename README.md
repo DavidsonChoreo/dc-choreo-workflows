@@ -14,12 +14,13 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner |
 | `checks/license.js` | A `LICENSE` file that matches the passport's `license`; Apache-2.0, MIT and BSD-3-Clause pass, others pass with a warning for review |
 | `checks/tier.js` | The code matches the tier: no `server/` on Pages; on a container app, a Containerfile with digest-pinned base images, a non-root final user and a healthcheck |
-| `checks/files.js` | `AGENTS.md` and `CLAUDE.md` match a released canonical copy |
+| `checks/files.js` | `AGENTS.md` and `CLAUDE.md` match a released canonical copy, and `CODEOWNERS` gives them and `PASSPORT.yml` to `@DavidsonChoreo/platform-engineering` |
 | `checks/secrets.js` | Explains a gitleaks scan of the full history: each secret, its file, line and first commit, never its value or author |
 | `checks/audit.js` | Explains `npm audit`: high and critical vulnerabilities fail, moderate and low warn |
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
+| `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
 | `actions/build/` | For paved-road apps: `npm ci`, the audit, `npm run build`, then the indexing check on the built site. Other stacks are skipped with a warning |
@@ -59,6 +60,8 @@ Apps call `@v1`, a tag that moves forward with each compatible release, so fixes
 ## Canonical governance files
 
 `AGENTS.md` and `CLAUDE.md` belong to Platform Engineering, and every app carries a copy written by the package. An app passes when its copy matches **any** released version, so apps scaffolded with an older package still pass until they update.
+
+`CODEOWNERS` is checked by what it says, not by hash, so builders can add owners for their own files. The check reads the **last** line matching each governed file, since that's the line GitHub applies, and fails when it leaves out the PE team. The team needs write access to the repository for GitHub to honor it; repository creation grants it.
 
 When a package release changes either file, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. `hashOf` in `checks/files.js` computes it.
 
