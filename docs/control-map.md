@@ -8,8 +8,8 @@ How each item in Information Security's review standard is met by a Choreo app. 
 
 | Met by | What it means | Pages | Container |
 |---|---|---|---|
-| platform | The hosting module or the shared layer provides it | 5 | 32 |
-| check | A blocking CI check confirms it | 31 | 31 |
+| platform | The hosting module or the shared layer provides it | 6 | 33 |
+| check | A blocking CI check confirms it | 30 | 30 |
 | flag | The assessor judges it, with evidence | 10 | 32 |
 | attested | The builder confirms it at the ready call | 12 | 18 |
 | n/a | Doesn't apply to the tier | 56 | 1 |
@@ -182,7 +182,7 @@ How each item in Information Security's review standard is met by a Choreo app. 
 |---|---|---|---|
 | **8.1** Applicable regulatory frameworks identified | check | check | As 3.10. |
 | **8.2** Legal and InfoSec consulted before build where frameworks apply | process | process | Discovery routes any regulated data to a human, with InfoSec and Legal, before the build starts (#86). |
-| **8.3** Incident notification owner identified | check | check | The passport's `incident_contact`, required by the passport check. |
+| **8.3** Incident notification owner identified | platform | platform | Platform Engineering is every app's incident contact, so the passport doesn't name one (retreat decision, 2026-10-12). |
 
 ## 9. Pre-deployment approval and sign-off
 

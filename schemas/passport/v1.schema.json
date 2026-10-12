@@ -22,7 +22,6 @@
     "purpose",
     "app_owners",
     "business_owner",
-    "incident_contact",
     "department",
     "custody",
     "created",
@@ -72,7 +71,7 @@
       "$ref": "#/$defs/person"
     },
     "incident_contact": {
-      "description": "Who answers when Information Security reports an incident about this app.",
+      "description": "Deprecated and optional: Platform Engineering is every app's incident contact, so new passports leave this out. Existing passports may keep it until they drop the line.",
       "$ref": "#/$defs/person"
     },
     "department": {

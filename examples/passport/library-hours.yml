@@ -7,7 +7,6 @@ purpose: >
 app_owners:
   - { name: Riley Example, email: riexample@davidson.edu }
 business_owner: { name: Jordan Example, email: joexample@davidson.edu }
-incident_contact: { name: Riley Example, email: riexample@davidson.edu }
 department: Library
 custody: >
   If the app owner leaves, the library's head of access services names a

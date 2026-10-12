@@ -7,7 +7,6 @@ purpose: >
 app_owners:
   - { name: Dana Example, email: daexample@davidson.edu }
 business_owner: { name: Morgan Example, email: moexample@davidson.edu }
-incident_contact: { name: Dana Example, email: daexample@davidson.edu }
 department: Registrar's Office
 custody: >
   If the app owners leave, the department head names a successor within 30 days.

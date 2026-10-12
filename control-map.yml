@@ -947,11 +947,9 @@ controls:
   summary: Incident notification owner identified
   scope: app
   met_by:
-    pages: check
-    container: check
-  checks:
-  - passport
-  how: The passport's `incident_contact`, required by the passport check.
+    pages: platform
+    container: platform
+  how: Platform Engineering is every app's incident contact, so the passport doesn't name one (retreat decision, 2026-10-12).
 - id: '9.1'
   summary: Tier-1 gate passed
   scope: process
