@@ -23,6 +23,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
+| `control-map.yml` | How each of the 140 items in Information Security's review standard is met: by the platform, a check, an assessor flag, a builder attestation, or a pipeline step. The assessor starts the report's security section from it. Readable version: `docs/control-map.md` |
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
 | `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
@@ -42,6 +43,7 @@ Each schema's `$id` is its address. A published version never changes, so these 
 
 - Passport, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/passport/v1.schema.json`
 - Report, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json`
+- Control map, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/control-map/v1.schema.json`
 - Official sites, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/official-sites/v1.schema.json`
 
 ## The app inventory

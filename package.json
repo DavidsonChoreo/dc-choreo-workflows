@@ -6,7 +6,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "control-map-doc": "node scripts/control-map-doc.js"
   },
   "dependencies": {
     "ajv": "8.20.0",
