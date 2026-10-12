@@ -3,6 +3,8 @@
 // test fails when the page is out of date.
 
 import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadControlMap } from '../checks/control-map.js';
 
 const SECTIONS = {
@@ -60,6 +62,8 @@ export function renderControlMap(map) {
   return lines.join('\n');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run directly (not imported by the test): compare real paths, which works on
+// Windows, where a hand-built file:// URL never matches.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   writeFileSync(new URL('../docs/control-map.md', import.meta.url), renderControlMap(loadControlMap()));
 }
