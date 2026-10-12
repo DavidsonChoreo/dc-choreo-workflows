@@ -19,3 +19,30 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  # Runs the passport action from this branch against a passing app and a
+  # failing one. The failing run's annotation on PASSPORT.yml is expected.
+  passport-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up a passing app and a failing one
+        run: |
+          mkdir -p "$RUNNER_TEMP/good" "$RUNNER_TEMP/bad"
+          cp examples/passport/academic-deadlines.yml "$RUNNER_TEMP/good/PASSPORT.yml"
+          sed 's/  tier: container/  tier: swa/' examples/passport/academic-deadlines.yml > "$RUNNER_TEMP/bad/PASSPORT.yml"
+      - name: A valid passport passes
+        uses: ./actions/passport
+        with:
+          working-directory: ${{ runner.temp }}/good
+      - name: A broken passport fails
+        id: bad
+        continue-on-error: true
+        uses: ./actions/passport
+        with:
+          working-directory: ${{ runner.temp }}/bad
+      - name: Confirm the broken passport failed
+        if: steps.bad.outcome != 'failure'
+        run: |
+          echo "::error::The passport action passed a broken passport."
+          exit 1

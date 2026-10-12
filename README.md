@@ -14,8 +14,31 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner, with messages written for builders |
 | `checks/passport-cli.js` | Runs the passport check at an app's root and reports each problem as an annotation on `PASSPORT.yml` |
 | `test/` | Tests for the checks, run with `npm test` |
+| `actions/passport/` | The passport check as a composite action, so a run always uses the scripts from its own version |
+| `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
+| `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |
+| `templates/choreo-checks.yml` | The stub every app repository gets from the package, at `.github/workflows/choreo-checks.yml` |
 
-The required checks, the reusable deploy workflow, the rubrics and the official-sites list arrive here as the build goes on.
+The remaining checks, the reusable deploy workflow, the rubrics and the official-sites list arrive here as the build goes on.
+
+## Published schemas
+
+Each schema's `$id` is its address. A published version never changes, so these URLs are stable:
+
+- Passport, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/passport/v1.schema.json`
+- Report, version 1: `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/main/schemas/report/v1.schema.json`
+
+## How apps run the checks
+
+Two ways in, one set of checks:
+
+- **The stub.** Every app repository carries `templates/choreo-checks.yml`, copied in by the package. It calls `checks.yml` on every push to `main` and every pull request, so incubating apps, which push straight to `main`, are checked too.
+- **The required workflow.** Once an app is hosted, the `lifecycle: hosted` ruleset requires `required.yml` on its pull requests. A builder can delete the stub; they can't remove a required workflow.
+
+## Versions
+
+Apps call `@v1`, a tag that moves forward with each compatible release, so fixes reach every app without anyone editing their stub. A change that would break apps ships as `@v2`. The workflows inside this repository also reference `@v1`, so a change to an action takes effect for apps when `v1` moves, not when it merges.
+
 
 ## Working with the schemas
 
