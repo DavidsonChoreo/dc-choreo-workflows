@@ -180,6 +180,14 @@ test('build-plan: a paved app without a lockfile fails', () => {
   assert.match(result.output, /^build=false$/m);
 });
 
+test('build-plan: a paved Nuxt app without package.json fails, saying so', () => {
+  const result = run('build-plan', { ...buildable, 'package.json': null });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /package\.json/);
+  assert.doesNotMatch(result.errors[0], /off the paved road/);
+  assert.match(result.output, /^build=false$/m);
+});
+
 test('build-plan: an app off the paved road is skipped with a warning', () => {
   const result = run('build-plan', {
     ...buildable,

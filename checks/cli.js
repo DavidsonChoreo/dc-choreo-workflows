@@ -99,11 +99,18 @@ function runBuildPlan() {
   const passport = readPassport();
   if (passport.problem) return plan(false, { file: 'PASSPORT.yml', problems: [passport.problem], warnings: [] });
   const { road, stack } = passport.value;
-  if (road !== 'paved' || stack !== 'nuxt' || !existsSync('package.json')) {
+  if (road !== 'paved' || stack !== 'nuxt') {
     return plan(false, {
       file: 'PASSPORT.yml',
       problems: [],
       warnings: ['This app is off the paved road, so CI doesn\'t build it yet. Platform Engineering checks the build by hand at the publish request.'],
+    });
+  }
+  if (!existsSync('package.json')) {
+    return plan(false, {
+      file: 'PASSPORT.yml',
+      problems: ['The passport says this is a paved-road Nuxt app, but there is no package.json, so it can\'t be built. Restore package.json, or correct `road` and `stack` in the passport.'],
+      warnings: [],
     });
   }
   if (!existsSync('package-lock.json')) {
