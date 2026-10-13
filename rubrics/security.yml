@@ -133,7 +133,9 @@ items:
     look_for: >
       Anywhere in the files or their history: sample or test data drawn from real records, exports,
       screenshots, log excerpts, real names or emails beyond the app's owners, internal hostnames or IP
-      addresses, and comments describing internal infrastructure. The repository goes public.
+      addresses, and comments describing internal infrastructure. The repository goes public. Personal data
+      means information about an identifiable person. Feedback or scores on a team's or a class's work, with
+      no student named or otherwise identifiable, is not a student record: note it at low, if at all.
 
   - id: tokens-in-urls
     title: Tokens or secrets in URLs
