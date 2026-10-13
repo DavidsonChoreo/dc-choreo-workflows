@@ -312,6 +312,13 @@ test('dependencies: an app with no package.json and a supported base image passe
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
+test('dependencies: the Choreo layer from Platform Engineering\'s releases passes without asking npm', () => {
+  const layer = 'https://github.com/DavidsonCollege/dc-choreo-scaffold/releases/download/v0.2.0/davidson-choreo-layer-0.2.0.tgz';
+  const result = run('dependencies', { ...goodApp, 'package.json': JSON.stringify({ name: 'x', dependencies: { '@davidson/choreo-layer': layer } }) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.doesNotMatch(result.stdout, /npm registry/);
+});
+
 test('unused: a knip report with an unused dependency warns', () => {
   const report = JSON.stringify({ issues: [{ file: 'package.json', dependencies: [{ name: 'left-pad' }] }] });
   const result = run('unused', { ...goodApp, '.knip.json': report }, { KNIP_REPORT: '{dir}/.knip.json' });

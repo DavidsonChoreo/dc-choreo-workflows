@@ -18,7 +18,7 @@ import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
 import { scanHttp, scanCors, explainAxe } from './code.js';
 import { checkWorkspace } from './workspace.js';
-import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from './dependencies.js';
+import { newDependencies, checkRegistry, checkSources, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from './dependencies.js';
 
 const CHECKS = {
   passport: { title: 'Passport', run: runPassport },
@@ -166,7 +166,10 @@ async function runDependencies() {
   const now = new Date();
   const results = [];
 
-  const lookups = await Promise.all(newDependencies(base, packageJson).map(lookUpPackage));
+  const specs = { ...packageJson?.dependencies, ...packageJson?.devDependencies };
+  const sources = checkSources(newDependencies(base, packageJson).map((name) => ({ name, spec: specs[name] })));
+  results.push(tag('package.json', { problems: sources.problems, warnings: [] }));
+  const lookups = await Promise.all(sources.lookUp.map(lookUpPackage));
   results.push(tag('package.json', checkRegistry(lookups.filter(Boolean), now)));
   const unreachable = lookups.filter((l) => l === null).length;
   if (unreachable) results.push({ problems: [], warnings: [`The npm registry couldn't be reached for ${unreachable} new ${unreachable === 1 ? 'dependency' : 'dependencies'}, so ${unreachable === 1 ? 'it wasn\'t' : 'they weren\'t'} checked. Re-run the checks.`] });

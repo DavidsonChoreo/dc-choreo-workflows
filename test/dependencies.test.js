@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused } from '../checks/dependencies.js';
+import { newDependencies, checkRegistry, checkAutoMerge, checkEndOfLife, runtimesOf, explainUnused, sourceOf, checkSources } from '../checks/dependencies.js';
 
 const fixture = (name) => JSON.parse(readFileSync(new URL(`./fixtures/reports/${name}`, import.meta.url), 'utf8'));
 const cycles = { nodejs: fixture('eol-nodejs.json'), python: fixture('eol-python.json') };
@@ -34,6 +34,34 @@ test('a dependency first published in the last 30 days passes with a warning', (
 test('an established dependency passes quietly', () => {
   const result = checkRegistry([{ name: 'nuxt', exists: true, created: '2016-10-26T00:00:00Z' }], today);
   assert.deepEqual(result, { ok: true, problems: [], warnings: [] });
+});
+
+const LAYER = 'https://github.com/DavidsonCollege/dc-choreo-scaffold/releases/download/v0.2.0/davidson-choreo-layer-0.2.0.tgz';
+
+test('a dependency\'s source: the npm registry, Platform Engineering\'s own releases, or somewhere else', () => {
+  for (const spec of ['^4.1.0', '1.2.3', 'latest', '>=2 <3', 'npm:left-pad@1.3.0', '*']) assert.equal(sourceOf(spec), 'registry', spec);
+  assert.equal(sourceOf(LAYER), 'davidson');
+  for (const spec of ['https://example.org/pkg-1.0.0.tgz', 'https://github.com/someone/dc-choreo-scaffold/releases/download/v1/x.tgz', 'github:someone/pkg', 'someone/pkg', 'git+https://github.com/someone/pkg.git', 'file:../pkg', 'link:../pkg']) {
+    assert.equal(sourceOf(spec), 'outside', spec);
+  }
+});
+
+test('Platform Engineering\'s own packages are trusted without an npm lookup', () => {
+  const { lookUp, problems } = checkSources([{ name: '@davidson/choreo-layer', spec: LAYER }, { name: 'nuxt', spec: '^4.1.0' }]);
+  assert.deepEqual(lookUp, ['nuxt']);
+  assert.deepEqual(problems, []);
+});
+
+test('a package from outside npm fails, saying where it comes from rather than that it doesn\'t exist', () => {
+  const { lookUp, problems } = checkSources([{ name: 'helper', spec: 'https://example.org/helper-1.0.0.tgz' }]);
+  assert.deepEqual(lookUp, []);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /`helper` comes from https:\/\/example\.org\/helper-1\.0\.0\.tgz, not the npm registry/);
+  assert.doesNotMatch(problems[0], /doesn't exist/);
+});
+
+test('an npm alias is looked up by the package it points to', () => {
+  assert.deepEqual(checkSources([{ name: 'pad', spec: 'npm:left-pad@1.3.0' }]).lookUp, ['left-pad']);
 });
 
 test('a workflow that auto-merges pull requests fails', () => {
