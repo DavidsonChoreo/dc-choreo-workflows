@@ -1,0 +1,35 @@
+# The publish-request issue form. The package writes it into every app at
+# .github/ISSUE_TEMPLATE/publish-request.yml. dc-choreo-factory's intake reads
+# this file at v1 and finds each answer by its field id, so keep the ids
+# (summary, audience, notes) and the title as they are; labels and help text
+# can change. The Choreo plugin can open the same issue directly: title
+# "Publish request", each label as a "### " heading followed by the answer.
+name: Publish request
+description: Ask for this app to be reviewed and published on Choreo
+title: Publish request
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Platform Engineering's review runs within the hour. It comments here with anything to fix,
+        or sends your request on to Information Security, College Communications and Platform
+        Engineering. After a fix, comment `/review` to run it again.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What does your app do?
+      description: Two or three sentences, as you'd explain it to a colleague.
+    validations:
+      required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Who will use it, and how will they find it?
+      description: 'For example: "Staff in the Registrar''s office, from a link on our team page."'
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything reviewers should know?
+      description: Optional. Anything you're unsure about, or a deadline we should plan around.
