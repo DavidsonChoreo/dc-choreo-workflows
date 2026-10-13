@@ -260,9 +260,13 @@ async function runAccessibility() {
     if (!site) return skip('The app didn\'t start in CI.');
     site.pages = ['/'];
   } else if (existsSync('.output/public')) {
-    site = await serveStatic('.output/public');
+    // A Pages site without a custom domain lives at /<app>/ and is built for
+    // that path, so it's served there too, or its styles and scripts don't load.
+    const base = passport.value.profile?.tier === 'pages' && !passport.value.custom_domain && passport.value.app
+      ? `/${passport.value.app}/` : '/';
+    site = await serveStatic('.output/public', base);
     site.pages = listFiles('.output/public').filter((p) => p.endsWith('.html')).slice(0, MAX_PAGES)
-      .map((p) => `/${p}`.replace(/index\.html$/, ''));
+      .map((p) => `${base}${p}`.replace(/index\.html$/, ''));
   } else {
     return { file: 'PASSPORT.yml', problems: ['The build left no `.output` directory, so accessibility couldn\'t be checked. The paved road builds into `.output`; check the build script.'], warnings: [] };
   }
@@ -294,11 +298,13 @@ async function runAccessibility() {
   }
 }
 
-// Serves a directory of static files on a free local port.
-async function serveStatic(root) {
+// Serves a directory of static files on a free local port, under `base`.
+async function serveStatic(root, base = '/') {
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };
   const server = createServer((req, res) => {
     let path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    if (!path.startsWith(base)) { res.statusCode = 404; res.end(); return; }
+    path = path.slice(base.length - 1);
     if (path.endsWith('/')) path += 'index.html';
     const file = join(root, path);
     if (!file.startsWith(join(root)) || !existsSync(file)) { res.statusCode = 404; res.end(); return; }

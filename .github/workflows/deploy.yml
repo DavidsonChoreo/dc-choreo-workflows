@@ -1,0 +1,259 @@
+# The deploy workflow every hosted container app calls, through the stub the package writes at
+# .github/workflows/deploy.yml (canonical copy: canonical/deploy.yml). Part 5 of the build plan,
+# DavidsonCollege/platform-engineering#34.
+#
+#   plan    (ubuntu, no credentials)   only main deploys; the app's name and tier from PASSPORT.yml
+#   build   (ubuntu, no credentials)   docker build from the Containerfile, and an SBOM of the image
+#   push    (dc-choreo-vnet)           docker push as the app's deploy identity; read the digest
+#   sbom    (ubuntu)                   attest the SBOM to that digest, in GitHub's attestation store
+#   deploy  (ubuntu)                   point the container app at the digest; wait for a healthy revision
+#
+# Images are built on GitHub's standard runners and only pushed from the hub runner, so no app or dependency code
+# runs on Davidson's network. The registry has public access off: only the hub runner reaches it.
+#
+# Names follow the hosting monorepo's convention, from the passport's `app`: repository <app>/<app> in the registry,
+# which the app's identities are granted on, and container app dc-<app>-app in dc-<app>-rg.
+#
+# No reviewer sits on a deploy (pipeline.md decision 25): PE approves an app's first production deploy at the ready
+# call. Two refusals join this workflow later: a passport that doesn't match `approved-passport-sha` (#89), and a
+# commit whose drift check neither passed nor was cleared (#91).
+#
+# This repository and every app's run logs are public, so the registry's name comes in as an input and is masked.
+name: choreo deploy
+
+on:
+  workflow_call:
+    inputs:
+      client-id:
+        description: The app's deploy identity (vars.AZURE_CLIENT_ID)
+        type: string
+        required: true
+      tenant-id:
+        description: vars.AZURE_TENANT_ID
+        type: string
+        required: true
+      subscription-id:
+        description: vars.AZURE_SUBSCRIPTION_ID
+        type: string
+        required: true
+      registry:
+        description: The registry's name, without .azurecr.io (the organization's vars.CHOREO_REGISTRY)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.passport.outputs.app }}
+    steps:
+      - name: Only main deploys
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REGISTRY: ${{ inputs.registry }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ] || { [ "$EVENT" != "push" ] && [ "$EVENT" != "workflow_dispatch" ]; }; then
+            echo "::error::Choreo deploys only from main, after a merge (pipeline.md decision 25). This run was a $EVENT on $REF."
+            exit 1
+          fi
+          if [ -z "$REGISTRY" ]; then
+            echo "::error::The organization variable CHOREO_REGISTRY isn't set, so there's no registry to push to. Ask Platform Engineering."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: passport
+        name: The app's name and tier, from its passport
+        run: |
+          set -euo pipefail
+          if [ ! -f PASSPORT.yml ]; then
+            echo "::error::There's no PASSPORT.yml, so there's no app to deploy. Ask Platform Engineering."
+            exit 1
+          fi
+          app="$(yq -r '.app // ""' PASSPORT.yml)"
+          tier="$(yq -r '.profile.tier // ""' PASSPORT.yml)"
+          if ! [[ "$app" =~ ^[a-z][a-z0-9-]{0,23}[a-z0-9]$ ]]; then
+            echo "::error file=PASSPORT.yml::The passport's \`app\` needs to start with a letter and be 2 to 25 lowercase letters, numbers and hyphens, so the container app's name fits Azure's 32-character limit. Ask Platform Engineering."
+            exit 1
+          fi
+          if [ "$tier" != "container" ]; then
+            echo "::error file=PASSPORT.yml::This workflow deploys container apps, and the passport's tier is \`$tier\`. A Pages site publishes through GitHub Pages."
+            exit 1
+          fi
+          if [ ! -f Containerfile ]; then
+            echo "::error::A container app needs a Containerfile at the repository's root. The package writes one; restore it, or ask Platform Engineering."
+            exit 1
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: ${{ needs.plan.outputs.app }}:${{ github.sha }}
+      # Syft v1.52.0. It scans the saved image, so it never gets the Docker socket.
+      SYFT: anchore/syft@sha256:500e2d872ac019436926e8322b4fc1f39441d94d21f6f4046c6ff29b30e8cb02
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: |
+          set -euo pipefail
+          docker build -f Containerfile -t "$IMAGE" .
+          docker save "$IMAGE" -o "$RUNNER_TEMP/image.tar"
+
+      - name: SBOM of the image
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$RUNNER_TEMP:/work:ro" "$SYFT" docker-archive:/work/image.tar -o spdx-json > "$RUNNER_TEMP/sbom.spdx.json"
+          gzip "$RUNNER_TEMP/image.tar"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image
+          path: ${{ runner.temp }}/image.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom.spdx.json
+          retention-days: 90
+
+  push:
+    name: push
+    needs: [plan, build]
+    runs-on: dc-choreo-vnet
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    env:
+      APP: ${{ needs.plan.outputs.app }}
+      REGISTRY: ${{ inputs.registry }}
+    steps:
+      - name: Keep the registry's name out of the log
+        run: echo "::add-mask::$REGISTRY"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image
+          path: ${{ runner.temp }}
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ inputs.client-id }}
+          tenant-id: ${{ inputs.tenant-id }}
+          subscription-id: ${{ inputs.subscription-id }}
+
+      - id: push
+        name: Push the image
+        run: |
+          set -euo pipefail
+          gunzip -c "$RUNNER_TEMP/image.tar.gz" | docker load
+          target="$REGISTRY.azurecr.io/$APP/$APP:$GITHUB_SHA"
+          docker tag "$APP:$GITHUB_SHA" "$target"
+          az acr login --name "$REGISTRY" --output none
+          docker push "$target"
+          digest="$(az acr manifest show-metadata --registry "$REGISTRY" --name "$APP/$APP:$GITHUB_SHA" --query digest -o tsv)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::The registry didn't return the pushed image's digest."; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  sbom:
+    name: sbom
+    needs: [plan, push]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom
+          path: ${{ runner.temp }}
+
+      # Signed and stored in GitHub's attestation store against the image's digest (InfoSec item 5.8.7). The subject
+      # leaves out the registry's host, because a public repository's attestations go to a public transparency log.
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ needs.plan.outputs.app }}/${{ needs.plan.outputs.app }}
+          subject-digest: ${{ needs.push.outputs.digest }}
+          sbom-path: ${{ runner.temp }}/sbom.spdx.json
+
+  deploy:
+    name: deploy
+    # No release without its SBOM.
+    needs: [plan, push, sbom]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP: ${{ needs.plan.outputs.app }}
+      REGISTRY: ${{ inputs.registry }}
+      DIGEST: ${{ needs.push.outputs.digest }}
+    steps:
+      - name: Keep the registry's name out of the log
+        run: echo "::add-mask::$REGISTRY"
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ inputs.client-id }}
+          tenant-id: ${{ inputs.tenant-id }}
+          subscription-id: ${{ inputs.subscription-id }}
+
+      # By digest, not tag: a tag can move, and a digest names exactly the bytes this commit built.
+      - name: Point the container app at the new image
+        run: |
+          set -euo pipefail
+          az containerapp update \
+            --resource-group "dc-$APP-rg" \
+            --name "dc-$APP-app" \
+            --image "$REGISTRY.azurecr.io/$APP/$APP@$DIGEST" \
+            --output none
+
+      - name: Wait for a healthy revision
+        run: |
+          set -euo pipefail
+          revision="$(az containerapp show -g "dc-$APP-rg" -n "dc-$APP-app" --query properties.latestRevisionName -o tsv)"
+          # Healthy is the test, not Running: an app that scales to zero can be healthy with no replica running.
+          for _ in $(seq 1 40); do
+            read -r running health < <(az containerapp revision show -g "dc-$APP-rg" -n "dc-$APP-app" --revision "$revision" \
+              --query '[properties.runningState, properties.healthState]' -o tsv | tr '\n' ' ')
+            case "$running" in
+              Failed|Degraded|Stopped)
+                echo "::error::Revision $revision didn't start: $running, $health. Its logs are in the app's Log Analytics workspace."
+                exit 1 ;;
+            esac
+            [ "$health" = "Healthy" ] && break
+            sleep 15
+          done
+          if [ "$health" != "Healthy" ]; then
+            echo "::error::Revision $revision wasn't healthy after 10 minutes: $running, $health."
+            exit 1
+          fi
+          fqdn="$(az containerapp show -g "dc-$APP-rg" -n "dc-$APP-app" --query properties.configuration.ingress.fqdn -o tsv)"
+          {
+            echo "Deployed \`$APP\` at \`$DIGEST\`."
+            echo
+            echo "Revision \`$revision\` is running and healthy: https://$fqdn"
+          } >> "$GITHUB_STEP_SUMMARY"
