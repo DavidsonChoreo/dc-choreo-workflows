@@ -31,6 +31,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
 | `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
 | `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
+| `canonical/publish-request.yml` | The publish-request issue form the package writes into every app, at `.github/ISSUE_TEMPLATE/publish-request.yml`. dc-choreo-factory's intake reads it at `v1` to find each answer by its field id (`summary`, `audience`, `notes`), so those ids and the title are fixed and the wording is free. Not enforced by the files check |
 | `canonical/deploy.yml` | The deploy stub the package writes into every container app, at `.github/workflows/deploy.yml`. It calls `deploy.yml` on every merge to `main` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
