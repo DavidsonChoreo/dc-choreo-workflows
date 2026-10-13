@@ -94,6 +94,33 @@ test('the app itself goes in the user message: passport, checks and every file w
   assert.match(text, /passport/);
 });
 
+test('history leads go in the user message: path, commit, line, and whether the file is still there', () => {
+  const history = {
+    files: [{ path: 'data/roster.csv', kind: 'data', present: false, commit: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2' }],
+    leads: [{ pattern: 'davidson-id', path: 'seed.js', commit: 'b'.repeat(40), line: 3, present: true, text: 'id: 800123456' }],
+    totalLeads: 1,
+  };
+  const text = request({ history }).messages[0].content.map((c) => c.text ?? '').join('\n');
+  assert.match(text, /data\/roster\.csv.*only in history.*a1b2c3d/);
+  assert.match(text, /seed\.js, line 3.*Davidson ID/);
+});
+
+test('documents follow their label, in the user message, after the files', () => {
+  const block = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERg==' } };
+  const documents = [{ path: 'reports/final.pdf', present: false, commit: 'c'.repeat(40), block }];
+  const content = request({ documents }).messages[0].content;
+  const at = content.findIndex((c) => c.type === 'document');
+  assert.ok(at > 0);
+  assert.deepEqual(content[at], block);
+  assert.match(content[at - 1].text, /reports\/final\.pdf.*only in history.*ccccccc/);
+});
+
+test('the system prompt says how to judge history and documents', () => {
+  const text = request().system.map((s) => s.text).join('\n');
+  assert.match(text, /files that are only in the history still go public/i);
+  assert.match(text, /the page number/i);
+});
+
 // A stand-in client: returns `message` from the stream's finalMessage().
 const client = (message) => ({ beta: { messages: { stream: () => ({ finalMessage: async () => message }) } } });
 const judgments = { summary: 'Fine.', flags: [], controls: [{ id: '4.3', status: 'met', evidence: 'server/api/x.ts checks the role.' }] };

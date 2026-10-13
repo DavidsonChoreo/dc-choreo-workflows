@@ -14,6 +14,8 @@ import { loadControlMap } from '../checks/control-map.js';
 import { collectSources, buildRequest, runAssessment, completeJudgments, hasLlm } from './assess.js';
 import { assembleReport } from './report.js';
 import { collectAlerts } from './alerts.js';
+import { scanHistory } from './history.js';
+import { prepareDocuments, unreadFlag } from './documents.js';
 
 // The checks the publish request runs, in report order. One with no result
 // file didn't run: an earlier step stopped it, or the app's stack skips it.
@@ -44,11 +46,18 @@ const checkResults = CHECKS.flatMap((check) => {
 const map = loadControlMap();
 const rubric = parse(readFileSync(new URL('../rubrics/security.yml', import.meta.url), 'utf8'));
 const tier = passport.profile.tier;
+// Counts only in the log: the repository's logs are public.
+const history = scanHistory(appDir);
+const { documents, unread } = prepareDocuments(appDir, history.files);
+console.log(`History: ${history.files.length} documents, images and data files; ${history.totalLeads} leads. Read ${documents.length} documents and images; ${unread.length} left for a person.`);
+
 const request = buildRequest({
   tier, rubric, map,
   passportText: passportBytes.toString('utf8'),
   checkResults,
   sources: collectSources(appDir),
+  history,
+  documents,
 });
 
 const client = new Anthropic();
@@ -61,7 +70,8 @@ const report = assembleReport({
   passportSha: createHash('sha256').update(passportBytes).digest('hex'),
   commit: execFileSync('git', ['-C', appDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
-  tier, map, rubric, checkResults, judgments, alerts,
+  tier, map, rubric, checkResults, judgments,
+  extraFlags: [...alerts, unreadFlag(unread)].filter(Boolean),
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 // Claude's raw judgments, kept beside the report so a change to the

@@ -67,6 +67,15 @@ jobs:
       - { name: Secrets, uses: ./actions/secrets, continue-on-error: true, with: { working-directory: app } }
       - { name: "Dependencies, code and build", uses: ./actions/build, continue-on-error: true, with: { working-directory: app } }
 
+      - name: Install the document tools
+        # poppler-utils counts PDF pages; LibreOffice converts Office files to
+        # PDF, and is installed only when the app's history has any.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends poppler-utils
+          if git -C app log --all --format= --name-only | grep -qiE '\.(docx?|pptx?|xlsx?|od[tps])$'; then
+            sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui fonts-liberation
+          fi
       - name: Assess
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

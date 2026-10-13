@@ -15,8 +15,8 @@ const MAX_TOKENS = 64000;
 // prompt and the answer. A bigger app needs a different approach, not a cut.
 const MAX_CHARS = 2_500_000;
 
-const NOT_SOURCE = new Set(['node_modules', '.git', '.output', '.nuxt', 'dist', '.venv', '__pycache__', 'coverage']);
-const LOCKFILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'uv.lock']);
+export const NOT_SOURCE = new Set(['node_modules', '.git', '.output', '.nuxt', 'dist', '.venv', '__pycache__', 'coverage']);
+export const LOCKFILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'uv.lock']);
 
 // Every text file in the app, by repository path. Binary files are skipped
 // and listed; nothing is truncated.
@@ -114,6 +114,7 @@ How to judge:
 - Decide every control listed. "met" needs evidence of what meets it; "not-met" needs evidence of the gap, and usually goes with a flag. A control that the app has nothing to do with (say, webhook signatures in an app with no webhooks) is met, with evidence saying why it doesn't arise.
 - The prompt-injection item applies only when the passport's llm is set; judge it then and not otherwise.
 - Never quote a secret, a credential, real personal data, or an internal hostname in your output, even when you're flagging it: say where it is and what kind of thing it is.
+- The repository goes public with its whole history, and files that are only in the history still go public. The request lists leads from a scan of every commit (files and lines that look like personal data or internal details) and includes the documents and images from any commit; judge them under real-data-in-repository. A lead is only a place to look: a nine-digit number may be a constant, and an address may be the app's own contact. For a document, the evidence names the file and the page number; for something only in the history, it names the file and the commit, such as "data/roster.csv, removed but still in history at a1b2c3d". The fix for anything in the history is Platform Engineering rewriting it with the builder before the repository goes public.
 - The summary is one paragraph for the three reviewers: what the app does and for whom, what data it touches, and the most important things to look at.`,
     },
     {
@@ -124,7 +125,17 @@ How to judge:
   ];
 }
 
-function userMessage({ passportText, checkResults, sources }) {
+const NAMES = { ssn: 'Social Security number', 'davidson-id': 'Davidson ID number', 'davidson-email': 'Davidson email address', 'private-ip': 'private IP address', 'internal-hostname': 'internal hostname' };
+const where = ({ present, commit }) => (present ? 'in the current files' : `only in history, at ${commit.slice(0, 7)}`);
+
+function historyText({ files = [], leads = [], totalLeads = 0 } = {}) {
+  const listed = files.map((f) => `- ${f.path} (${f.kind}, ${where(f)})`).join('\n') || '- none';
+  const found = leads.map((l) => `- ${l.path}, line ${l.line} (${where(l)}): looks like a ${NAMES[l.pattern]}: ${l.text}`).join('\n') || '- none';
+  const more = totalLeads > leads.length ? `\n(${totalLeads} leads in all; the first ${leads.length} are shown.)` : '';
+  return `From a scan of every commit in the repository's history.\n\nDocuments, images, Office and data files:\n${listed}\n\nLeads:\n${found}${more}`;
+}
+
+function userMessage({ passportText, checkResults, sources, history, documents = [] }) {
   const checks = checkResults.map((r) => {
     if (r.skipped) return `- ${r.check}: skipped (${r.reason ?? 'no reason given'})`;
     if (r.problems.length > 0) return `- ${r.check}: failed: ${r.problems.join(' ')}`;
@@ -136,6 +147,8 @@ function userMessage({ passportText, checkResults, sources }) {
     { type: 'text', text: `The app's passport (PASSPORT.yml):\n\n${passportText}` },
     { type: 'text', text: `Deterministic check results:\n\n${checks}${skipped}` },
     { type: 'text', text: `The app's files (${sources.files.length}):\n\n${files}` },
+    { type: 'text', text: historyText(history) },
+    ...documents.flatMap((d) => [{ type: 'text', text: `=== ${d.path} (${where(d)}) ===` }, d.block]),
   ];
 }
 
@@ -144,7 +157,7 @@ export function hasLlm(passportText) {
   return /^llm:\s*(?!null\s*$)\S/m.test(passportText);
 }
 
-export function buildRequest({ tier, rubric, map, passportText, checkResults, sources }) {
+export function buildRequest({ tier, rubric, map, passportText, checkResults, sources, history, documents }) {
   const llm = hasLlm(passportText);
   return {
     model: MODEL,
@@ -154,7 +167,7 @@ export function buildRequest({ tier, rubric, map, passportText, checkResults, so
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system: systemPrompt({ tier, rubric, map }),
-    messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources }) }],
+    messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources, history, documents }) }],
     output_config: {
       effort: EFFORT,
       format: { type: 'json_schema', schema: judgmentsSchema({ tier, rubric, map, llm }) },
