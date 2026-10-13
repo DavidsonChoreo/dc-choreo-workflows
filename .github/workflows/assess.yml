@@ -1,9 +1,13 @@
 # The assessor: runs every check against an app, then has Claude judge its
 # code against the security rubric, and writes report.json, which the three
 # approvers read at the ready call. Called by the publish request (#89), or
-# by hand. It checks out this repository at its own commit and uses the
-# actions by local path, so the checks and the assessor are always the same
-# version: call it only from within dc-choreo-workflows.
+# by hand. It checks out this repository and uses the actions by local path,
+# so the checks and the assessor are always the same version.
+#
+# The publish request calls it from the private dc-choreo-factory at `v1`
+# (pipeline.md, decision 39), so the report and screenshots of an unapproved
+# app stay private; the caller passes `workflows_ref: v1` (the default) and
+# its secrets. Run by hand here, it uses this run's own commit.
 name: assess
 
 on:
@@ -17,6 +21,15 @@ on:
         description: The commit, branch or tag to assess
         type: string
         default: ''
+      workflows_ref:
+        description: The dc-choreo-workflows ref to run, matching the ref the caller named
+        type: string
+        default: v1
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+      CHOREO_READER_PRIVATE_KEY:
+        required: true
   workflow_dispatch:
     inputs:
       repository:
@@ -45,11 +58,17 @@ jobs:
         id: reader
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ vars.CHOREO_READER_APP_ID }}
+          # davidson-choreo-reader's id: not a secret, and the same from any caller.
+          app-id: 5291440
           private-key: ${{ secrets.CHOREO_READER_PRIVATE_KEY }}
           owner: DavidsonChoreo
       - name: Check out the checks and the assessor
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: DavidsonChoreo/dc-choreo-workflows
+          # Called: the ref the caller named. By hand here: this run's commit.
+          ref: ${{ inputs.workflows_ref || github.sha }}
+          persist-credentials: false
       - name: Check out the app
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
