@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import Anthropic from '@anthropic-ai/sdk';
 import { parse, parseDocument } from 'yaml';
 import { loadControlMap } from '../checks/control-map.js';
-import { collectSources, buildRequest, runAssessment, completeJudgments, hasLlm } from './assess.js';
+import { collectSources, buildRequest, assessWithDocuments, completeJudgments, hasLlm } from './assess.js';
 import { assembleReport } from './report.js';
 import { collectAlerts } from './alerts.js';
 import { scanHistory } from './history.js';
@@ -51,17 +51,20 @@ const history = scanHistory(appDir);
 const { documents, unread } = prepareDocuments(appDir, history.files);
 console.log(`History: ${history.files.length} documents, images and data files; ${history.totalLeads} leads. Read ${documents.length} documents and images; ${unread.length} left for a person.`);
 
-const request = buildRequest({
+const sources = collectSources(appDir);
+const build = (docs) => buildRequest({
   tier, rubric, map,
   passportText: passportBytes.toString('utf8'),
   checkResults,
-  sources: collectSources(appDir),
+  sources,
   history,
-  documents,
+  documents: docs,
 });
 
 const client = new Anthropic();
-const judgments = completeJudgments(await runAssessment({ client, request }), { rubric, llm: hasLlm(passportBytes.toString('utf8')) });
+const assessed = await assessWithDocuments({ client, documents, build });
+unread.push(...assessed.unread);
+const judgments = completeJudgments(assessed.judgments, { rubric, llm: hasLlm(passportBytes.toString('utf8')) });
 
 const alerts = await collectAlerts({ repository: process.env.CHOREO_REPOSITORY, github });
 

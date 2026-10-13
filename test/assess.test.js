@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { parse } from 'yaml';
-import { collectSources, judgmentsSchema, buildRequest, runAssessment, MODEL } from '../assessor/assess.js';
+import { collectSources, judgmentsSchema, buildRequest, runAssessment, assessWithDocuments, MODEL } from '../assessor/assess.js';
 import { loadControlMap } from '../checks/control-map.js';
 
 const map = loadControlMap();
@@ -161,4 +161,40 @@ test('with an LLM, nothing is filled in: Claude has to judge those controls', ()
 
 test('a refusal is left alone', () => {
   assert.deepEqual(completeJudgments({ refused: true }, { rubric, llm: false }), { refused: true });
+});
+
+// A client that rejects any request carrying a document whose data is 'BAD',
+// the way the API answers an invalid PDF, and otherwise returns judgments.
+function rejectingClient() {
+  const sent = [];
+  const stream = (req) => ({
+    finalMessage: async () => {
+      sent.push(req);
+      const at = req.messages[0].content.findIndex((c) => c.source?.data === 'BAD');
+      if (at >= 0) {
+        const err = new Error(`400 {"type":"error","error":{"type":"invalid_request_error","message":"messages.0.content.${at}.pdf.source.base64.data: The PDF specified was not valid."}}`);
+        err.status = 400;
+        throw err;
+      }
+      return message(JSON.stringify(judgments));
+    },
+  });
+  return { client: { beta: { messages: { stream } } }, sent };
+}
+
+const doc = (path, data) => ({ path, present: true, commit: 'd'.repeat(40), block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } } });
+
+test('a document the API rejects is dropped and listed unread, and the review goes ahead', async () => {
+  const { client, sent } = rejectingClient();
+  const documents = [doc('good.pdf', 'JVBERg=='), doc('broken.pdf', 'BAD')];
+  const result = await assessWithDocuments({ client, documents, build: (docs) => request({ documents: docs }) });
+  assert.deepEqual(result.judgments, judgments);
+  assert.deepEqual(result.unread.map((u) => [u.path, u.reason]), [['broken.pdf', "the Claude API couldn't read it"]]);
+  assert.equal(sent.length, 2);
+  assert.ok(sent[1].messages[0].content.some((c) => c.source?.data === 'JVBERg=='));
+});
+
+test('any other API error still fails loudly', async () => {
+  const client = { beta: { messages: { stream: () => ({ finalMessage: async () => { const e = new Error('500 overloaded'); e.status = 500; throw e; } }) } } };
+  await assert.rejects(assessWithDocuments({ client, documents: [], build: (docs) => request({ documents: docs }) }), /overloaded/);
 });

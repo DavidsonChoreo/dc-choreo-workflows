@@ -205,3 +205,25 @@ export async function runAssessment({ client, request }) {
   }
   return judgments;
 }
+
+// Runs the review with the documents, dropping any the API says it can't read
+// (a malformed PDF in an old commit, say) and trying again, so one bad file
+// leaves a person to open it instead of stopping the review. A rejected
+// request isn't charged. build(documents) returns the request.
+export async function assessWithDocuments({ client, documents, build }) {
+  let kept = [...documents];
+  const unread = [];
+  for (;;) {
+    const request = build(kept);
+    try {
+      return { request, judgments: await runAssessment({ client, request }), unread };
+    } catch (err) {
+      const at = err.status === 400 && Number(String(err.message).match(/messages\.0\.content\.(\d+)\.(?:pdf|image)/)?.[1]);
+      const rejected = Number.isInteger(at) && kept.find((d) => d.block === request.messages[0].content[at]);
+      if (!rejected) throw err;
+      console.log(`The Claude API couldn't read ${rejected.path}; reviewing without it.`);
+      kept = kept.filter((d) => d !== rejected);
+      unread.push({ path: rejected.path, commit: rejected.commit, present: rejected.present, reason: "the Claude API couldn't read it" });
+    }
+  }
+}
