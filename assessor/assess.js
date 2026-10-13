@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { stringify } from 'yaml';
+import { parse, stringify } from 'yaml';
 
 export const MODEL = 'claude-opus-5-5';
 const EFFORT = 'low';
@@ -14,6 +14,11 @@ const MAX_TOKENS = 64000;
 // About 700,000 tokens of source: what fits in one request with room for the
 // prompt and the answer. A bigger app needs a different approach, not a cut.
 const MAX_CHARS = 2_500_000;
+
+const load = (path) => parse(readFileSync(new URL(path, import.meta.url), 'utf8'), { schema: 'yaml-1.1' });
+// College Communications' rubric and the official sites it protects.
+const COMMS = load('../rubrics/comms.yml');
+const SITES = load('../official-sites.yml');
 
 export const NOT_SOURCE = new Set(['node_modules', '.git', '.output', '.nuxt', 'dist', '.venv', '__pycache__', 'coverage']);
 export const LOCKFILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'uv.lock']);
@@ -51,33 +56,44 @@ function itemsFor({ tier, rubric, llm }) {
   return rubric.items.filter((item) => item.tiers.includes(tier) && (item.when !== 'llm' || llm));
 }
 
+// The Comms items that apply: this tier, brand marks only when unbranded, and
+// search competition only when indexable.
+function commsItemsFor({ tier, comms, brand, indexable }) {
+  return comms.items.filter((item) => item.tiers.includes(tier)
+    && (item.when !== 'unbranded' || brand === 'unbranded')
+    && (item.when !== 'indexable' || indexable === true));
+}
+
+const flagItems = (ids) => ({
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'severity', 'detail', 'evidence'],
+    properties: {
+      id: { enum: ids },
+      severity: { enum: ['low', 'medium', 'high'] },
+      detail: { type: 'string' },
+      evidence: { type: 'string' },
+    },
+  },
+});
+
 function flagControlsFor({ tier, map }) {
   return map.controls.filter((c) => c.scope === 'app' && c.met_by[tier] === 'flag');
 }
 
 // What Claude returns. Only what structured outputs support: no length or
 // pattern limits, no conditionals, additionalProperties false everywhere.
-export function judgmentsSchema({ tier, rubric, map, llm }) {
+export function judgmentsSchema({ tier, rubric, map, llm, comms = COMMS, brand, indexable }) {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['summary', 'flags', 'controls'],
+    required: ['summary', 'flags', 'comms_flags', 'controls'],
     properties: {
       summary: { type: 'string', description: 'One paragraph for the reviewers: what the app is, what data it handles, and what they should know.' },
-      flags: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['id', 'severity', 'detail', 'evidence'],
-          properties: {
-            id: { enum: itemsFor({ tier, rubric, llm }).map((i) => i.id) },
-            severity: { enum: ['low', 'medium', 'high'] },
-            detail: { type: 'string' },
-            evidence: { type: 'string' },
-          },
-        },
-      },
+      flags: flagItems(itemsFor({ tier, rubric, llm }).map((i) => i.id)),
+      comms_flags: flagItems(commsItemsFor({ tier, comms, brand, indexable }).map((i) => i.id)),
       controls: {
         type: 'array',
         items: {
@@ -97,8 +113,10 @@ export function judgmentsSchema({ tier, rubric, map, llm }) {
 
 // The stable part of the prompt: the same for every app on a tier, so it's
 // cached. Everything that varies goes in the user message.
-function systemPrompt({ tier, rubric, map }) {
+function systemPrompt({ tier, rubric, map, comms, sites }) {
   const items = rubric.items.filter((i) => i.tiers.includes(tier));
+  const commsItems = comms.items.filter((i) => i.tiers.includes(tier));
+  const official = sites.sites.map(({ name, url, purpose }) => ({ name, url, purpose }));
   const controls = flagControlsFor({ tier, map }).map(({ id, summary, how }) => ({ id, summary, how }));
   const where = tier === 'pages' ? 'a static GitHub Pages site holding only Public data, with no login and no server' : 'an Azure container app behind Davidson SSO';
   return [
@@ -106,7 +124,7 @@ function systemPrompt({ tier, rubric, map }) {
       type: 'text',
       text: `You review apps for Davidson College's Choreo platform before Information Security, College Communications and Platform Engineering decide whether to publish them. Davidson staff and students build these apps, mostly with AI coding tools, and most aren't professional developers. This app is ${where}.
 
-Your job is to judge the app's code against the security rubric below, and to decide each control listed below as met or not-met. Deterministic checks (the passport, license, secrets, dependencies, build, indexing and accessibility) have already run; their results are in the request, and you don't repeat them.
+Your job is to judge the app's code against the security rubric below, to decide each control listed below as met or not-met, and to judge it against College Communications' rubric, which protects the College's brand and its place in search. Deterministic checks (the passport, license, secrets, dependencies, build, indexing and accessibility) have already run; their results are in the request, and you don't repeat them.
 
 How to judge:
 - Raise a flag only for a problem you can point to. Evidence names the file and line, such as "server/api/notes.post.ts, line 14". A flag's detail says what's wrong and how to fix it, in plain words a non-developer can act on.
@@ -115,11 +133,12 @@ How to judge:
 - The prompt-injection item applies only when the passport's llm is set; judge it then and not otherwise.
 - Never quote a secret, a credential, real personal data, or an internal hostname in your output, even when you're flagging it: say where it is and what kind of thing it is.
 - The repository goes public with its whole history, and files that are only in the history still go public. The request lists leads from a scan of every commit (files and lines that look like personal data or internal details) and includes the documents and images from any commit; judge them under real-data-in-repository. A lead is only a place to look: a nine-digit number may be a constant, and an address may be the app's own contact. For a document, the evidence names the file and the page number; for something only in the history, it names the file and the commit, such as "data/roster.csv, removed but still in history at a1b2c3d". The fix for anything in the history is Platform Engineering rewriting it with the builder before the repository goes public.
+- Comms flags go in comms_flags, not flags. The brand-marks item applies only when the passport's brand is unbranded, and search-competition only when indexable is true; judge them then and not otherwise. A Comms flag's detail tells the builder what to change, or that Comms will look.
 - The summary is one paragraph for the three reviewers: what the app does and for whom, what data it touches, and the most important things to look at.`,
     },
     {
       type: 'text',
-      text: `Security rubric:\n\n${stringify(items)}\nControls to decide:\n\n${stringify(controls)}`,
+      text: `Security rubric:\n\n${stringify(items)}\nControls to decide:\n\n${stringify(controls)}\nCollege Communications rubric:\n\n${stringify(commsItems)}\nOfficial College sites:\n\n${stringify(official)}`,
       cache_control: { type: 'ephemeral' },
     },
   ];
@@ -157,8 +176,9 @@ export function hasLlm(passportText) {
   return /^llm:\s*(?!null\s*$)\S/m.test(passportText);
 }
 
-export function buildRequest({ tier, rubric, map, passportText, checkResults, sources, history, documents }) {
+export function buildRequest({ tier, rubric, map, passportText, checkResults, sources, history, documents, comms = COMMS, sites = SITES }) {
   const llm = hasLlm(passportText);
+  const { brand, indexable } = parse(passportText, { schema: 'yaml-1.1' }) ?? {};
   return {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -166,11 +186,11 @@ export function buildRequest({ tier, rubric, map, passportText, checkResults, so
     // chosen by the decline's category, instead of returning the refusal.
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
-    system: systemPrompt({ tier, rubric, map }),
+    system: systemPrompt({ tier, rubric, map, comms, sites }),
     messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources, history, documents }) }],
     output_config: {
       effort: EFFORT,
-      format: { type: 'json_schema', schema: judgmentsSchema({ tier, rubric, map, llm }) },
+      format: { type: 'json_schema', schema: judgmentsSchema({ tier, rubric, map, llm, comms, brand, indexable }) },
     },
   };
 }
