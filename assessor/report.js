@@ -19,7 +19,8 @@ const validate = ajv.compile(reportSchema);
 // GitHub's open alerts (alerts.js) and documents it couldn't read (documents.js).
 // Kept even when Claude declined.
 // passport: the parsed passport; Comms' routing reads its classification.
-export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, passport, extraFlags = [] }) {
+// screenshotsUrl: the run's screenshots artifact, when there is one.
+export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, passport, extraFlags = [], screenshotsUrl }) {
   const results = new Map(checkResults.map((r) => [r.check, r]));
   const checks = checkResults.map(reportCheck);
   const how = new Map(map.controls.map((c) => [c.id, c]));
@@ -47,8 +48,8 @@ export function assembleReport({ app, passportSha, commit, runUrl, tier, map, ru
   const flags = [...(judgments.refused ? [] : judgments.flags ?? []), ...extraFlags];
   const security = { controls, flags, recommendation: securityRecommendation(controls, flags, rubric) };
   const commsFlags = judgments.refused ? [] : judgments.comms_flags ?? [];
-  // Screenshots go to Comms as Kuali attachments, not links here (#89).
-  const comms = { flags: commsFlags, screenshots: [], recommendation: commsRecommendation({ tier, passport, flags: commsFlags, refused: judgments.refused }) };
+  // The link to this run's screenshots artifact, private with the run (decision 39).
+  const comms = { flags: commsFlags, screenshots: screenshotsUrl ? [screenshotsUrl] : [], recommendation: commsRecommendation({ tier, passport, flags: commsFlags, refused: judgments.refused }) };
   // The PE rubric isn't built yet, so a person reviews that section.
   const platform = { flags: [], recommendation: 'review' };
 

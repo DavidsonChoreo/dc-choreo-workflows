@@ -151,6 +151,14 @@ test('the system prompt says how to judge history and documents', () => {
   assert.match(text, /the page number/i);
 });
 
+test('screenshots of the built pages follow their label, after the documents', () => {
+  const block = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw==' } };
+  const content = request({ screenshots: [{ page: '/about/', block }] }).messages[0].content;
+  const at = content.findIndex((c) => c === block || c.source?.data === 'iVBORw==');
+  assert.ok(at > 0);
+  assert.match(content[at - 1].text, /screenshot.*\/about\//i);
+});
+
 // A stand-in client: returns `message` from the stream's finalMessage().
 const client = (message) => ({ beta: { messages: { stream: () => ({ finalMessage: async () => message }) } } });
 const judgments = { summary: 'Fine.', flags: [], comms_flags: [], controls: [{ id: '4.3', status: 'met', evidence: 'server/api/x.ts checks the role.' }] };

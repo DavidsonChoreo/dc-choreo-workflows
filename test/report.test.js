@@ -219,3 +219,9 @@ test('a vulnerable dependency asks for review and never blocks (decision 40)', a
   assert.equal(report.sections.security.recommendation, 'review');
   assert.equal(report.recommendation, 'review');
 });
+
+test('the screenshots link goes in the Comms section; without one, the list is empty', () => {
+  const url = 'https://github.com/DavidsonChoreo/dc-choreo-factory/actions/runs/1/artifacts/2';
+  assert.deepEqual(assembleReport({ ...base, judgments: cleanJudgments(), screenshotsUrl: url }).sections.comms.screenshots, [url]);
+  assert.deepEqual(assembleReport({ ...base, judgments: cleanJudgments() }).sections.comms.screenshots, []);
+});

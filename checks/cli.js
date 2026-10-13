@@ -264,12 +264,14 @@ async function runAccessibility() {
     site = await startServer('.output/server/index.mjs');
     if (!site) return skip('The app didn\'t start in CI.');
     site.pages = ['/'];
+    site.root = '/';
   } else if (existsSync('.output/public')) {
     // A Pages site without a custom domain lives at /<app>/ and is built for
     // that path, so it's served there too, or its styles and scripts don't load.
     const base = passport.value.profile?.tier === 'pages' && !passport.value.custom_domain && passport.value.app
       ? `/${passport.value.app}/` : '/';
     site = await serveStatic('.output/public', base);
+    site.root = base;
     site.pages = listFiles('.output/public').filter((p) => p.endsWith('.html')).slice(0, MAX_PAGES)
       .map((p) => `${base}${p}`.replace(/index\.html$/, ''));
   } else {
@@ -293,6 +295,16 @@ async function runAccessibility() {
         await page.addScriptTag({ content: axeSource });
         const result = await page.evaluate(() => window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }));
         results.push({ page: path, result });
+        // Screenshots for the reviewers, only where the publish request asks
+        // for them (assess.yml): they'd be public from a hosted app's checks.
+        // Playwright's default viewport is 1280 wide; fullPage takes the rest.
+        if (process.env.CHOREO_SCREENSHOT_DIR) {
+          mkdirSync(process.env.CHOREO_SCREENSHOT_DIR, { recursive: true });
+          // The whole page, cut at 8000 pixels: the most the Claude API accepts.
+          const height = Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 8000);
+          const width = page.viewportSize().width;
+          await page.screenshot({ path: join(process.env.CHOREO_SCREENSHOT_DIR, screenshotName(path, site.root)), fullPage: true, clip: { x: 0, y: 0, width, height } });
+        }
       }
     } finally {
       await browser.close();
@@ -301,6 +313,12 @@ async function runAccessibility() {
   } finally {
     site.stop();
   }
+}
+
+// `/<app>/about/` under base `/<app>/` is about.png; the home page is index.png.
+function screenshotName(path, base) {
+  const rest = path.slice(base.length).replace(/^\/+|\/+$/g, '').replace(/\.html$/, '');
+  return `${rest.replaceAll('/', '-') || 'index'}.png`;
 }
 
 // Serves a directory of static files on a free local port, under `base`.
