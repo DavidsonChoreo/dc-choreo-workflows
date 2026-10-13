@@ -70,6 +70,8 @@ jobs:
       - name: Assess
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ steps.reader.outputs.token }}
+          CHOREO_REPOSITORY: ${{ inputs.repository }}
         run: |
           npm ci --omit=dev --no-audit --no-fund --loglevel=error
           node assessor/run.js app "$CHOREO_RESULT_DIR" report.json
