@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { parse } from 'yaml';
-import { collectSources, judgmentsSchema, buildRequest, runAssessment, MODEL } from '../assessor/assess.js';
+import { collectSources, judgmentsSchema, buildRequest, runAssessment, assessWithDocuments, MODEL } from '../assessor/assess.js';
 import { loadControlMap } from '../checks/control-map.js';
 
 const map = loadControlMap();
@@ -94,6 +94,33 @@ test('the app itself goes in the user message: passport, checks and every file w
   assert.match(text, /passport/);
 });
 
+test('history leads go in the user message: path, commit, line, and whether the file is still there', () => {
+  const history = {
+    files: [{ path: 'data/roster.csv', kind: 'data', present: false, commit: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2' }],
+    leads: [{ pattern: 'davidson-id', path: 'seed.js', commit: 'b'.repeat(40), line: 3, present: true, text: 'id: 800123456' }],
+    totalLeads: 1,
+  };
+  const text = request({ history }).messages[0].content.map((c) => c.text ?? '').join('\n');
+  assert.match(text, /data\/roster\.csv.*only in history.*a1b2c3d/);
+  assert.match(text, /seed\.js, line 3.*Davidson ID/);
+});
+
+test('documents follow their label, in the user message, after the files', () => {
+  const block = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERg==' } };
+  const documents = [{ path: 'reports/final.pdf', present: false, commit: 'c'.repeat(40), block }];
+  const content = request({ documents }).messages[0].content;
+  const at = content.findIndex((c) => c.type === 'document');
+  assert.ok(at > 0);
+  assert.deepEqual(content[at], block);
+  assert.match(content[at - 1].text, /reports\/final\.pdf.*only in history.*ccccccc/);
+});
+
+test('the system prompt says how to judge history and documents', () => {
+  const text = request().system.map((s) => s.text).join('\n');
+  assert.match(text, /files that are only in the history still go public/i);
+  assert.match(text, /the page number/i);
+});
+
 // A stand-in client: returns `message` from the stream's finalMessage().
 const client = (message) => ({ beta: { messages: { stream: () => ({ finalMessage: async () => message }) } } });
 const judgments = { summary: 'Fine.', flags: [], controls: [{ id: '4.3', status: 'met', evidence: 'server/api/x.ts checks the role.' }] };
@@ -134,4 +161,40 @@ test('with an LLM, nothing is filled in: Claude has to judge those controls', ()
 
 test('a refusal is left alone', () => {
   assert.deepEqual(completeJudgments({ refused: true }, { rubric, llm: false }), { refused: true });
+});
+
+// A client that rejects any request carrying a document whose data is 'BAD',
+// the way the API answers an invalid PDF, and otherwise returns judgments.
+function rejectingClient() {
+  const sent = [];
+  const stream = (req) => ({
+    finalMessage: async () => {
+      sent.push(req);
+      const at = req.messages[0].content.findIndex((c) => c.source?.data === 'BAD');
+      if (at >= 0) {
+        const err = new Error(`400 {"type":"error","error":{"type":"invalid_request_error","message":"messages.0.content.${at}.pdf.source.base64.data: The PDF specified was not valid."}}`);
+        err.status = 400;
+        throw err;
+      }
+      return message(JSON.stringify(judgments));
+    },
+  });
+  return { client: { beta: { messages: { stream } } }, sent };
+}
+
+const doc = (path, data) => ({ path, present: true, commit: 'd'.repeat(40), block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } } });
+
+test('a document the API rejects is dropped and listed unread, and the review goes ahead', async () => {
+  const { client, sent } = rejectingClient();
+  const documents = [doc('good.pdf', 'JVBERg=='), doc('broken.pdf', 'BAD')];
+  const result = await assessWithDocuments({ client, documents, build: (docs) => request({ documents: docs }) });
+  assert.deepEqual(result.judgments, judgments);
+  assert.deepEqual(result.unread.map((u) => [u.path, u.reason]), [['broken.pdf', "the Claude API couldn't read it"]]);
+  assert.equal(sent.length, 2);
+  assert.ok(sent[1].messages[0].content.some((c) => c.source?.data === 'JVBERg=='));
+});
+
+test('any other API error still fails loudly', async () => {
+  const client = { beta: { messages: { stream: () => ({ finalMessage: async () => { const e = new Error('500 overloaded'); e.status = 500; throw e; } }) } } };
+  await assert.rejects(assessWithDocuments({ client, documents: [], build: (docs) => request({ documents: docs }) }), /overloaded/);
 });

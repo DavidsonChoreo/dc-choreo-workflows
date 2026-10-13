@@ -15,8 +15,9 @@ const validate = ajv.compile(reportSchema);
 
 // checkResults: { check, problems, warnings } per check, or { check, skipped, reason }.
 // judgments: { summary, flags, controls: [{ id, status, evidence }] }, or { refused: true }.
-// alerts: flags from GitHub's open alerts (alerts.js), kept even when Claude declined.
-export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, alerts = [] }) {
+// extraFlags: flags code found, not Claude: GitHub's open alerts (alerts.js) and
+// documents it couldn't read (documents.js). Kept even when Claude declined.
+export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, extraFlags = [] }) {
   const results = new Map(checkResults.map((r) => [r.check, r]));
   const checks = checkResults.map(reportCheck);
   const how = new Map(map.controls.map((c) => [c.id, c]));
@@ -41,7 +42,7 @@ export function assembleReport({ app, passportSha, commit, runUrl, tier, map, ru
     }
   });
 
-  const flags = [...(judgments.refused ? [] : judgments.flags ?? []), ...alerts];
+  const flags = [...(judgments.refused ? [] : judgments.flags ?? []), ...extraFlags];
   const security = { controls, flags, recommendation: securityRecommendation(controls, flags, rubric) };
   // Comms and PE rubrics aren't built yet, so a person reviews those sections.
   const comms = { flags: [], screenshots: [], recommendation: 'review' };
