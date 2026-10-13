@@ -1,6 +1,6 @@
 // The audit check explains `npm audit --json`. It never fails: a vulnerable
 // dependency is a medium finding at worst, which asks for a person's review
-// at the publish request, not a block (pipeline.md, decision 39). Every
+// at the publish request, not a block (pipeline.md, decision 40). Every
 // finding is a warning naming the package and the fix, and the assessor
 // gets them as flags: high and critical as medium, moderate and low as low.
 

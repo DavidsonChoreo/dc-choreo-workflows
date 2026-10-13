@@ -2,7 +2,7 @@
 // secret scanning. They become security flags in report.json, one per kind
 // and severity, so the reviewers see them next to Claude's. A secret is
 // always high: it's fixed with PE before deploy (pipeline.md, decision 35).
-// A vulnerable dependency is medium at worst (decision 39).
+// A vulnerable dependency is medium at worst (decision 40).
 // Hosted apps are public and have all three; a private repository usually
 // has none, which leaves a low flag saying so.
 
