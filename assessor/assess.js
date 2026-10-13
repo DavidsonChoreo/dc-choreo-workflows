@@ -128,7 +128,7 @@ Your job is to judge the app's code against the security rubric below, to decide
 
 How to judge:
 - Raise a flag only for a problem you can point to. Evidence names the file and line, such as "server/api/notes.post.ts, line 14". A flag's detail says what's wrong and how to fix it, in plain words a non-developer can act on.
-- Use the rubric item's severity unless the evidence clearly warrants another; say why in the detail when you change it.
+- Severity follows the definitions in the rubric: high is reserved for egregious missteps that are already harm, such as personal data disclosed or regulated data mishandled. Use the item's severity unless the evidence clearly warrants another by those definitions; say why in the detail when you change it.
 - Decide every control listed. "met" needs evidence of what meets it; "not-met" needs evidence of the gap, and usually goes with a flag. A control that the app has nothing to do with (say, webhook signatures in an app with no webhooks) is met, with evidence saying why it doesn't arise.
 - The prompt-injection item applies only when the passport's llm is set; judge it then and not otherwise.
 - Never quote a secret, a credential, real personal data, or an internal hostname in your output, even when you're flagging it: say where it is and what kind of thing it is.
@@ -138,7 +138,7 @@ How to judge:
     },
     {
       type: 'text',
-      text: `Security rubric:\n\n${stringify(items)}\nControls to decide:\n\n${stringify(controls)}\nCollege Communications rubric:\n\n${stringify(commsItems)}\nOfficial College sites:\n\n${stringify(official)}`,
+      text: `Severities:\n\n${stringify(rubric.severities)}\nSecurity rubric:\n\n${stringify(items)}\nControls to decide:\n\n${stringify(controls)}\nCollege Communications rubric:\n\n${stringify(commsItems)}\nOfficial College sites:\n\n${stringify(official)}`,
       cache_control: { type: 'ephemeral' },
     },
   ];

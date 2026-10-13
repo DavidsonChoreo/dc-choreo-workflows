@@ -78,6 +78,13 @@ test('the system prompt carries the Comms rubric and the official sites, and sti
   assert.match(text, /https:\/\/catalog\.davidson\.edu\//);
 });
 
+test('the system prompt carries the severity definitions: high is reserved for harm already done', () => {
+  const text = request({ passportText: passport }).system.map((s) => s.text).join('\n');
+  assert.match(text, /Severities:/);
+  assert.match(text, /personal data\s+disclosed/);
+  assert.match(text, /FERPA/);
+});
+
 test('the judgments schema uses only what structured outputs support', () => {
   const text = JSON.stringify(judgmentsSchema({ tier: 'container', rubric, map, llm: true }));
   assert.doesNotMatch(text, /minLength|maxLength|minimum|maximum|"if"|"pattern"/);
