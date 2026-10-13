@@ -20,6 +20,8 @@ const base = {
   map,
   rubric,
   checkResults: passing,
+  // Campus-unbranded: the classification whose Comms step auto-completes.
+  passport: { audience_scope: 'internal', brand: 'unbranded', indexable: false, custom_domain: null },
 };
 
 // Claude's judgments: every flag control on the tier met, no flags.
@@ -27,7 +29,7 @@ function cleanJudgments(tier = 'container') {
   const controls = map.controls
     .filter((c) => c.scope === 'app' && c.met_by[tier] === 'flag')
     .map((c) => ({ id: c.id, status: 'met', evidence: `Looked at it: fine for ${c.id}.` }));
-  return { summary: 'A campus app for add and drop deadlines.', flags: [], controls };
+  return { summary: 'A campus app for add and drop deadlines.', flags: [], comms_flags: [], controls };
 }
 
 const control = (report, id) => report.sections.security.controls.find((c) => c.id === id);
@@ -46,11 +48,45 @@ test('a clean app: every check passes, controls are filled in, and the report va
   assert.equal(report.sections.security.recommendation, 'approve');
 });
 
-test('comms and platform say review until their rubrics exist, so the report says review', () => {
+test('platform says review until its rubric exists, so the report says review', () => {
   const report = assembleReport({ ...base, judgments: cleanJudgments() });
-  assert.equal(report.sections.comms.recommendation, 'review');
+  assert.equal(report.sections.comms.recommendation, 'approve');
   assert.equal(report.sections.platform.recommendation, 'review');
   assert.equal(report.recommendation, 'review');
+});
+
+// The Comms step, by classification (College Communications' cheat sheet) and
+// the extra triggers in pipeline.md: indexable, a custom domain, any flag.
+const comms = (passport, { tier = 'container', judgments = cleanJudgments(tier) } = {}) =>
+  assembleReport({ ...base, tier, passport: { ...base.passport, ...passport }, judgments }).sections.comms.recommendation;
+
+test('Comms routing: campus-unbranded and public-unbranded auto-complete, public-branded always reviews', () => {
+  assert.equal(comms({ audience_scope: 'internal', brand: 'unbranded' }), 'approve');
+  assert.equal(comms({ audience_scope: 'external', brand: 'unbranded' }, { tier: 'pages' }), 'approve');
+  assert.equal(comms({ audience_scope: 'external', brand: 'branded' }, { tier: 'pages' }), 'review');
+});
+
+test('Comms routing: campus-branded auto-completes behind SSO, reviews on a public Pages URL', () => {
+  assert.equal(comms({ audience_scope: 'internal', brand: 'branded' }), 'approve');
+  assert.equal(comms({ audience_scope: 'internal', brand: 'branded' }, { tier: 'pages' }), 'review');
+});
+
+test('Comms routing: indexable or a custom domain means review, whatever the classification', () => {
+  assert.equal(comms({ audience_scope: 'external', brand: 'unbranded', indexable: true }, { tier: 'pages' }), 'review');
+  assert.equal(comms({ custom_domain: 'hours.example.org' }), 'review');
+});
+
+test('Comms flags go in the Comms section, ask for review, and never block, even marked high', () => {
+  const judgments = { ...cleanJudgments(), comms_flags: [{ id: 'brand-marks', severity: 'high', detail: 'The seal is in the header.', evidence: 'public/seal.png' }] };
+  const report = assembleReport({ ...base, judgments });
+  assert.deepEqual(report.sections.comms.flags.map((f) => f.id), ['brand-marks']);
+  assert.equal(report.sections.comms.recommendation, 'review');
+  assert.equal(report.sections.security.flags.length, 0);
+  assert.notEqual(report.recommendation, 'block');
+});
+
+test('Comms reviews by hand when the assessor declined', () => {
+  assert.equal(comms({}, { judgments: { refused: true } }), 'review');
 });
 
 test('a failed check fails its controls and blocks', () => {

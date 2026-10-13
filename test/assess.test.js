@@ -10,6 +10,8 @@ import { loadControlMap } from '../checks/control-map.js';
 const map = loadControlMap();
 const rubric = parse(readFileSync(new URL('../rubrics/security.yml', import.meta.url), 'utf8'));
 const passport = readFileSync(new URL('../examples/passport/academic-deadlines.yml', import.meta.url), 'utf8');
+// External, branded and indexable, where academic-deadlines is internal, unbranded and not.
+const publicPassport = readFileSync(new URL('../examples/passport/library-hours.yml', import.meta.url), 'utf8');
 
 function app(files) {
   const dir = mkdtempSync(join(tmpdir(), 'assess-'));
@@ -53,6 +55,27 @@ test('the prompt-injection item is only offered when the passport has an LLM', (
   const ids = (llm) => judgmentsSchema({ tier: 'container', rubric, map, llm }).properties.flags.items.properties.id.enum;
   assert.ok(!ids(false).includes('prompt-injection'));
   assert.ok(ids(true).includes('prompt-injection'));
+});
+
+test('Comms flags: brand marks only on an unbranded app, search competition only on an indexable one', () => {
+  const ids = (text, tier) => request({ passportText: text, tier }).output_config.format.schema.properties.comms_flags.items.properties.id.enum;
+  const internal = ids(passport, 'container');
+  assert.ok(internal.includes('brand-marks'));
+  assert.ok(!internal.includes('search-competition'));
+  assert.ok(internal.includes('official-site-overlap') && internal.includes('audience-mismatch'));
+  const external = ids(publicPassport, 'pages');
+  assert.ok(external.includes('search-competition'));
+  assert.ok(!external.includes('brand-marks'));
+});
+
+test('the system prompt carries the Comms rubric and the official sites, and still caches across apps', () => {
+  const a = request({ passportText: passport });
+  const b = request({ passportText: publicPassport });
+  assert.deepEqual(a.system, b.system);
+  const text = a.system.map((s) => s.text).join('\n');
+  assert.match(text, /official-site-overlap/);
+  assert.match(text, /WildcatSync/);
+  assert.match(text, /https:\/\/catalog\.davidson\.edu\//);
 });
 
 test('the judgments schema uses only what structured outputs support', () => {
@@ -123,7 +146,7 @@ test('the system prompt says how to judge history and documents', () => {
 
 // A stand-in client: returns `message` from the stream's finalMessage().
 const client = (message) => ({ beta: { messages: { stream: () => ({ finalMessage: async () => message }) } } });
-const judgments = { summary: 'Fine.', flags: [], controls: [{ id: '4.3', status: 'met', evidence: 'server/api/x.ts checks the role.' }] };
+const judgments = { summary: 'Fine.', flags: [], comms_flags: [], controls: [{ id: '4.3', status: 'met', evidence: 'server/api/x.ts checks the role.' }] };
 const message = (text, stop_reason = 'end_turn') => ({ stop_reason, content: [{ type: 'text', text }] });
 
 test('a normal response becomes judgments', async () => {

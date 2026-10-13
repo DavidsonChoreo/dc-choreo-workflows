@@ -1,0 +1,54 @@
+# The assessor's College Communications rubric: what Claude looks for on Comms'
+# behalf at the publish request, from Comms' Site Passport proposal (August
+# 2026): sites mustn't replace, duplicate or compete with davidson.edu, and
+# signs that contradict the passport's classification go to a person. Every
+# item is medium: a flag asks Comms to review and never blocks. The
+# deterministic parts of that proposal are checks already (the passport, and
+# indexing's noindex rule).
+#
+# `when: unbranded` items run only when the passport's brand is unbranded;
+# `when: indexable` only when indexable is true. Whether Comms reviews at all
+# is decided in code from the classification (assessor/report.js).
+rubric: comms
+version: 1
+items:
+  - id: brand-marks
+    title: College marks on an unbranded app
+    tiers: [pages, container]
+    when: unbranded
+    severity: medium
+    look_for: >
+      The passport says the app is unbranded, but it uses the College's marks or presents itself as official:
+      the seal, the Davidson wordmark or logo, Wildcat imagery, the official colors used as a College identity,
+      or naming such as "Davidson College Office of ..." or "the official ... site". Look in images and
+      documents as well as code and page text. A plain mention of Davidson, or a link to davidson.edu, is fine.
+
+  - id: official-site-overlap
+    title: Duplicates an official College site
+    tiers: [pages, container]
+    severity: medium
+    look_for: >
+      The app's purpose or content duplicates one of the official College sites listed below, or one of
+      davidson.edu's own pages: the same information or service, so that people could find two versions and
+      not know which is right. Name the official site it overlaps. Linking to an official site, or covering a
+      narrower need it doesn't serve, isn't an overlap.
+
+  - id: search-competition
+    title: Competes with davidson.edu in search
+    tiers: [pages, container]
+    when: indexable
+    severity: medium
+    look_for: >
+      The app may be indexed, and its page titles, headings or meta descriptions target the searches
+      davidson.edu answers: "Davidson College" with admissions, tuition, financial aid, a department's or an
+      office's name, events or news, for instance. Indexed, these would compete with the College's own pages
+      in search and AI answers.
+
+  - id: audience-mismatch
+    title: Content doesn't match the stated audience
+    tiers: [pages, container]
+    severity: medium
+    look_for: >
+      The passport's audience_scope says internal (campus) but the content addresses the public: prospective
+      students or families, alumni, donors, "apply", "visit", "give". Or it says external but the app is
+      plainly a staff or student tool with nothing for the public. Quote the page and the words.

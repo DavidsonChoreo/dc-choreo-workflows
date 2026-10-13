@@ -17,7 +17,8 @@ const validate = ajv.compile(reportSchema);
 // judgments: { summary, flags, controls: [{ id, status, evidence }] }, or { refused: true }.
 // extraFlags: flags code found, not Claude: GitHub's open alerts (alerts.js) and
 // documents it couldn't read (documents.js). Kept even when Claude declined.
-export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, extraFlags = [] }) {
+// passport: the parsed passport; Comms' routing reads its classification.
+export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, passport, extraFlags = [] }) {
   const results = new Map(checkResults.map((r) => [r.check, r]));
   const checks = checkResults.map(reportCheck);
   const how = new Map(map.controls.map((c) => [c.id, c]));
@@ -44,8 +45,10 @@ export function assembleReport({ app, passportSha, commit, runUrl, tier, map, ru
 
   const flags = [...(judgments.refused ? [] : judgments.flags ?? []), ...extraFlags];
   const security = { controls, flags, recommendation: securityRecommendation(controls, flags, rubric) };
-  // Comms and PE rubrics aren't built yet, so a person reviews those sections.
-  const comms = { flags: [], screenshots: [], recommendation: 'review' };
+  const commsFlags = judgments.refused ? [] : judgments.comms_flags ?? [];
+  // Screenshots go to Comms as Kuali attachments, not links here (#89).
+  const comms = { flags: commsFlags, screenshots: [], recommendation: commsRecommendation({ tier, passport, flags: commsFlags, refused: judgments.refused }) };
+  // The PE rubric isn't built yet, so a person reviews that section.
   const platform = { flags: [], recommendation: 'review' };
 
   const summary = judgments.refused
@@ -111,6 +114,19 @@ function securityRecommendation(controls, flags, rubric) {
   if (flags.some((f) => f.severity === 'medium')) return 'review';
   if (judgedNotMet.some((s) => s === null || s === 'medium')) return 'review';
   if (controls.some((c) => c.status === 'pending' && c.met_by !== 'attested')) return 'review';
+  return 'approve';
+}
+
+// Whether College Communications reviews, from the classification (Comms'
+// Site Passport cheat sheet) and pipeline.md's triggers: public-branded always;
+// campus-branded only on the Pages tier, where its URL is public; anything
+// indexable or on a custom domain; and any Comms flag, or no judgment at all.
+// Otherwise their step auto-completes. Comms flags ask for review and never block.
+function commsRecommendation({ tier, passport, flags, refused }) {
+  const { audience_scope: audience, brand, indexable, custom_domain: domain } = passport;
+  if (refused || flags.length > 0) return 'review';
+  if (brand === 'branded' && (audience === 'external' || tier === 'pages')) return 'review';
+  if (indexable === true || domain) return 'review';
   return 'approve';
 }
 

@@ -41,3 +41,20 @@ test('every flag control in the map is judged by some rubric item on each tier',
     }
   }
 });
+
+const comms = parse(readFileSync(new URL('../rubrics/comms.yml', import.meta.url), 'utf8'));
+
+test('the Comms rubric is well formed: unique ids, apart from security\'s, medium, and conditions it understands', () => {
+  const ids = comms.items.map((i) => i.id);
+  assert.equal(comms.rubric, 'comms');
+  assert.equal(new Set(ids).size, ids.length);
+  for (const item of comms.items) {
+    assert.match(item.id, /^[a-z0-9][a-z0-9-]*$/, item.id);
+    assert.ok(!rubric.items.some((s) => s.id === item.id), `${item.id} is also a security item`);
+    assert.equal(item.severity, 'medium', item.id);
+    assert.ok(item.look_for.length > 40, item.id);
+    assert.ok(item.tiers.every((t) => ['pages', 'container'].includes(t)), item.id);
+    assert.ok([undefined, 'unbranded', 'indexable'].includes(item.when), item.id);
+  }
+  assert.deepEqual(ids.sort(), ['audience-mismatch', 'brand-marks', 'official-site-overlap', 'search-competition']);
+});

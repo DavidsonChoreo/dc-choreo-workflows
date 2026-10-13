@@ -73,7 +73,7 @@ const report = assembleReport({
   passportSha: createHash('sha256').update(passportBytes).digest('hex'),
   commit: execFileSync('git', ['-C', appDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
-  tier, map, rubric, checkResults, judgments,
+  tier, map, rubric, checkResults, judgments, passport,
   extraFlags: [...alerts, unreadFlag(unread)].filter(Boolean),
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -90,7 +90,7 @@ function summarize({ app, recommendation, summary, checks, sections }) {
   const lines = [
     `## Assessor report: ${app}`,
     '',
-    `**Recommendation: ${recommendation}.** Security says ${security.recommendation}; Comms and Platform Engineering review by hand until their rubrics exist.`,
+    `**Recommendation: ${recommendation}.** Security says ${security.recommendation}; Comms says ${sections.comms.recommendation}; Platform Engineering reviews by hand until its rubric exists.`,
     '',
     summary,
     '',
@@ -98,9 +98,10 @@ function summarize({ app, recommendation, summary, checks, sections }) {
     `Controls: ${count('met')} met, ${count('not-met')} not met, ${count('pending')} pending, ${count('n/a')} not applicable.`,
     '',
   ];
-  if (security.flags.length > 0) {
+  const flags = [...security.flags, ...sections.comms.flags];
+  if (flags.length > 0) {
     lines.push('| Flag | Severity | Detail | Evidence |', '|---|---|---|---|');
-    for (const f of security.flags) lines.push(`| ${f.id} | ${f.severity} | ${f.detail.replaceAll('|', '\\|')} | ${f.evidence.replaceAll('|', '\\|')} |`);
+    for (const f of flags) lines.push(`| ${f.id} | ${f.severity} | ${f.detail.replaceAll('|', '\\|')} | ${f.evidence.replaceAll('|', '\\|')} |`);
     lines.push('');
   }
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
