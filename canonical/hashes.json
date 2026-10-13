@@ -14,5 +14,11 @@
       "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
       "from": "DavidsonCollege/dc-choreo-scaffold@46f1939 (packages/create-choreo-app/templates/_base)"
     }
+  ],
+  ".github/workflows/deploy.yml": [
+    {
+      "sha256": "4e4de02afc6d383aa71eb5a5fdd0f563d48e1e8bc6285a8d2bcdabe996d15575",
+      "from": "DavidsonChoreo/dc-choreo-workflows@a76c3b4 (canonical/deploy.yml)"
+    }
   ]
 }

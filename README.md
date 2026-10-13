@@ -14,7 +14,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner |
 | `checks/license.js` | A `LICENSE` file that matches the passport's `license`; Apache-2.0, MIT and BSD-3-Clause pass, others pass with a warning for review |
 | `checks/tier.js` | The code matches the tier: no `server/` on Pages; on a container app, a Containerfile with digest-pinned base images, a non-root final user and a healthcheck |
-| `checks/files.js` | `AGENTS.md` and `CLAUDE.md` match a released canonical copy, and `CODEOWNERS` gives them and `PASSPORT.yml` to `@DavidsonChoreo/platform-engineering` |
+| `checks/files.js` | `AGENTS.md`, `CLAUDE.md` and, in a container app, the deploy stub match a released canonical copy, and `CODEOWNERS` gives them and `PASSPORT.yml` to `@DavidsonChoreo/platform-engineering` |
 | `checks/secrets.js` | Explains a gitleaks scan of the full history: each secret, its file, line and first commit, never its value or author |
 | `checks/audit.js` | Explains `npm audit`. Never fails: every vulnerable package warns, and the assessor gets a flag, medium for high and critical, low for the rest, so a person reviews it at the publish request (decision 40) |
 | `checks/dependencies.js` | New dependencies exist on the registry (and warn when brand new), no workflow auto-merges, runtimes aren't past end of life (endoflife.date), and unused dependencies warn (knip) |
@@ -22,7 +22,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/workspace.js` | At the publish request only: the repository is in DavidsonChoreo, the PE team has write, and `product-owner-email` includes the passport's business owner. PE completes anything missing |
 | `checks/indexing.js` | The built site matches the passport's `indexable`: noindex on every page (and the header on a container app) or a sitemap and robots.txt |
 | `checks/cli.js` | Runs one check at an app's root: `node checks/cli.js <passport\|license\|tier\|files\|secrets\|build-plan\|audit\|indexing>`. Problems become error annotations, warnings become warning annotations, and both go in the job summary |
-| `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md` and `CLAUDE.md` |
+| `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md`, `CLAUDE.md` and the deploy stub |
 | `rubrics/security.yml` | What the assessor looks for: 19 items, each with the flag id it raises and the controls it judges. A test keeps every `flag` control covered |
 | `rubrics/comms.yml` | What the assessor looks for on College Communications' behalf: 4 items from their Site Passport proposal, all medium |
 | `assessor/` and `.github/workflows/assess.yml` | The assessor: runs every check, has Claude (`claude-opus-5-5`, effort low) judge the code against the rubric, and assembles `report.json`, which must validate against the report schema |
@@ -97,9 +97,11 @@ Apps call `@v1`, a tag that moves forward with each compatible release, so fixes
 
 `AGENTS.md` and `CLAUDE.md` belong to Platform Engineering, and every app carries a copy written by the package. An app passes when its copy matches **any** released version, so apps scaffolded with an older package still pass until they update.
 
+Container apps also carry the deploy stub at `.github/workflows/deploy.yml`, checked the same way against `canonical/deploy.yml`. Builders merge their own pull requests once the checks pass (decision 25), so this check is what keeps every deploy going through the reviewed workflow here. A Pages site has no stub and isn't checked for one.
+
 `CODEOWNERS` is checked by what it says, not by hash, so builders can add owners for their own files. The check reads the **last** line matching each governed file, since that's the line GitHub applies, and fails when it leaves out the PE team. The team needs write access to the repository for GitHub to honor it; repository creation grants it.
 
-When a package release changes either file, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. `hashOf` in `checks/files.js` computes it.
+When a package release changes any of these files, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. A change to `canonical/deploy.yml` adds its new hash in the same pull request. `hashOf` in `checks/files.js` computes it.
 
 ## Working on the checks
 
