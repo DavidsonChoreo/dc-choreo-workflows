@@ -204,7 +204,7 @@ test('alerts stay in the report when the assessor declined', () => {
   assert.deepEqual(report.sections.security.flags.map((f) => f.id), ['alert-dependabot']);
 });
 
-test('a vulnerable dependency asks for review and never blocks (decision 39)', async () => {
+test('a vulnerable dependency asks for review and never blocks (decision 40)', async () => {
   const { explainAudit } = await import('../checks/audit.js');
   const audit = explainAudit({
     vulnerabilities: {
