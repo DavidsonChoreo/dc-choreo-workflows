@@ -2,15 +2,18 @@
 // secret scanning. They become security flags in report.json, one per kind
 // and severity, so the reviewers see them next to Claude's. A secret is
 // always high: it's fixed with PE before deploy (pipeline.md, decision 35).
+// A vulnerable dependency is medium at worst (decision 40).
 // Hosted apps are public and have all three; a private repository usually
 // has none, which leaves a low flag saying so.
+
+import { dependencySeverity } from '../checks/audit.js';
 
 const PER_PAGE = 100;
 const ORDER = ['high', 'medium', 'low'];
 
 const KINDS = [
   { id: 'alert-code-scanning', name: 'CodeQL', path: 'code-scanning', describe: describeCode, severity: codeSeverity },
-  { id: 'alert-dependabot', name: 'Dependabot', path: 'dependabot', describe: describeDependency, severity: (a) => advisorySeverity(a.security_advisory?.severity) },
+  { id: 'alert-dependabot', name: 'Dependabot', path: 'dependabot', describe: describeDependency, severity: (a) => dependencySeverity(a.security_advisory?.severity), levels: { medium: 'high- or critical', low: 'moderate- or low' } },
   { id: 'alert-secret-scanning', name: 'secret scanning', path: 'secret-scanning', describe: describeSecret, severity: () => 'high' },
 ];
 
@@ -45,7 +48,7 @@ function flagsFor(kind, alerts, repository) {
     const count = more ? `${found.length} or more` : `${found.length}`;
     const what = kind.id === 'alert-secret-scanning'
       ? `GitHub found ${count} secret${found.length === 1 ? '' : 's'} still open: ${found.map(describeSecret).join('; ')}. Platform Engineering rotates ${found.length === 1 ? 'it' : 'them'} with you and cleans the history before the app deploys.`
-      : `${kind.name} has ${count} open ${severity}-severity alert${found.length === 1 ? '' : 's'}: ${found.map(kind.describe).join('; ')}.`;
+      : `${kind.name} has ${count} open ${kind.levels?.[severity] ?? severity}-severity alert${found.length === 1 ? '' : 's'}: ${found.map(kind.describe).join('; ')}.`;
     return [{ id: kind.id, severity, detail: what, evidence: `https://github.com/${repository}/security/${kind.path}` }];
   });
 }
