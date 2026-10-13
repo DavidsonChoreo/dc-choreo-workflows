@@ -19,12 +19,20 @@ How each item in Information Security's review standard is met by a Choreo app. 
 - **4.7** WAF and Davidson SSO in front of internet-facing apps: Decision of 2026-10-12 on #85 takes precedence: Public and Internal apps have no WAF; every Restricted and Confidential app sits behind it, including one reachable only from campus and VPN.
 - **4.9** Phishing-resistant MFA above Public data: Decision of 2026-10-12 on #85 takes precedence: Choreo apps use Davidson SSO with Duo; the phishing-resistant requirement doesn't apply, and PE is raising it with InfoSec.
 - **5.4.1** WAF and SSO actually in the traffic path; origin not directly reachable: As 4.7.
-- **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer: Choreo's decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The checks are the gate, not a second person.
+- **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer: Choreo's decision takes precedence (pipeline.md decision 25, 2026-10-12): PE approves an app's first production deploy, at the ready call. After that no reviewer sits on a deploy: builders merge their own pull requests once the CI checks pass, and deploys run from `main`. A changed passport re-runs the ready call, and a change to `AGENTS.md` or `CLAUDE.md` needs PE's review through `CODEOWNERS`.
 
 ## Not fully met yet
 
+- **3.9** Retention defined per data type, with automated deletion: Lifecycle rules cover blob storage only. Data in a database (an app with a subnet of its own) or in Table or Files storage needs its own scheduled deletion, which isn't designed yet.
+- **5.6.3** 12-month log retention: As 5.6.6.
+- **5.6.4** Logs tamper-evident: As 5.6.6.
+- **5.6.5** Logs retrievable by InfoSec within a day or two: As 5.6.6.
+- **5.6.6** Azure diagnostic logs forwarded to the SIEM: The route from the hosting module into the SIEM is an open question on #85, so nothing forwards yet.
+- **5.6.7** Anomalous-access alerting for Confidential data: Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for Storage and Defender for Key Vault on Confidential apps' resources, and their cost, still need a decision.
 - **5.8.4** Production dependencies pinned exactly: The checks don't yet fail a floating specifier, such as `^1.2.0`, in package.json.
 - **5.8.7** SBOM generated at each release and stored: Nothing generates an SBOM yet.
+- **7.2** Retention per data category, with automated deletion: As 3.9.
+- **7.3** File aging for file-based integrations: As 3.9.
 
 ## 1. App registration (passport fields)
 
@@ -52,12 +60,12 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **3.1** What data the app reads, stores or transmits | flag | flag | The passport names the classification and, in `retention`, each data type. The assessor compares that with what the code actually handles and flags anything the passport doesn't cover. |
 | **3.2** Each data type classified | flag | flag | As 3.1: the passport's classification, checked by the assessor against the code. |
 | **3.3** US-based storage and processing, pinned regions | n/a | platform | The hosting module deploys every Azure resource to a pinned US region. A Pages site holds Public data only. |
-| **3.4** Storage platform approved for the classification | n/a | platform | The hosting module's storage and key vault are RBAC-only and, for Restricted and Confidential apps, firewalled to the AIToolsRestricted subnet in a US region. A Pages site has no storage. |
+| **3.4** Storage platform approved for the classification | n/a | platform | The hosting module's storage and key vault are RBAC-only, in a US region, behind default-deny network rules: the key vault admits the app's environment subnet and campus, storage admits only that subnet. Restricted and Confidential apps run in their own environment, on AIToolsRestricted. A Pages site has no storage. |
 | **3.5** Confidential or Restricted data leaving Davidson infrastructure | n/a | flag | The assessor compares the passport's `integrations`, each with its own data classification, against the app's classification and the code's outbound calls. |
 | **3.6** External LLM with live data: provider retention and training terms | attested | attested | The passport's `llm` says whether live data enters prompts; the builder confirms the provider's no-training and retention terms at the ready call. |
 | **3.7** Vendor review for any external service receiving Davidson data | flag | flag | The assessor checks each integration in the passport against the approved vendor list; discovery asks first (#86). |
 | **3.8** Data Processing Agreement where required | attested | attested | A ready-call attestation: a data processing agreement where a vendor needs one (#89). |
-| **3.9** Retention defined per data type, with automated deletion | n/a | platform | The passport's `retention`, required when the app writes data; the hosting module builds storage lifecycle rules from it (Part 5). |
+| **3.9** Retention defined per data type, with automated deletion | n/a | platform | The passport's `retention`, required when the app writes data; the hosting module builds storage lifecycle rules from it (Part 5). **Gap:** Lifecycle rules cover blob storage only. Data in a database (an app with a subnet of its own) or in Table or Files storage needs its own scheduled deletion, which isn't designed yet. |
 | **3.10** Applicable regulations identified | check | check | The passport's `regulations`, required by the passport check; any match routes discovery to a human with InfoSec and Legal (#86). |
 
 ## 4. Tier-1 security gate
@@ -69,7 +77,7 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **4.3** Authorization enforced server-side | n/a | flag | Security rubric: client-side-only authorization. `AGENTS.md` rule 8 tells the coding agent to check authorization on the server. |
 | **4.4** No admin tooling or debug endpoints exposed publicly | n/a | flag | Security rubric: exposed admin and debug endpoints. |
 | **4.5** AES-256 encryption at rest for Confidential and Restricted data | n/a | platform | Azure Storage and Key Vault encrypt at rest with AES-256 by default. |
-| **4.6** TLS 1.2 or later on all connections | platform | platform | Container Apps and GitHub Pages serve HTTPS only, with TLS 1.2 minimum set by the hosting module; the code check fails any plain `http://` call. |
+| **4.6** TLS 1.2 or later on all connections | platform | platform | Container Apps' HTTPS endpoints always use TLS 1.2 or 1.3, and the hosting module keeps insecure connections off, so HTTP redirects to HTTPS. Storage sets a TLS 1.2 minimum explicitly. GitHub Pages serves HTTPS only. The code check fails any plain `http://` call. |
 | **4.7** WAF and Davidson SSO in front of internet-facing apps | n/a | platform | Platform sign-in through Davidson SSO on every container app; Restricted and Confidential apps sit behind the WAF, Public and Internal apps don't. A Pages site is Public with no sign-in. **Precedence:** Decision of 2026-10-12 on #85 takes precedence: Public and Internal apps have no WAF; every Restricted and Confidential app sits behind it, including one reachable only from campus and VPN. |
 | **4.8** Davidson SSO, no homegrown login | n/a | platform | Container Apps' built-in authentication with Davidson's Entra tenant, enforced by the platform rather than app code; `AGENTS.md` rule 8 forbids homegrown login. |
 | **4.9** Phishing-resistant MFA above Public data | n/a | platform | Davidson SSO with Duo MFA. **Precedence:** Decision of 2026-10-12 on #85 takes precedence: Choreo apps use Davidson SSO with Duo; the phishing-resistant requirement doesn't apply, and PE is raising it with InfoSec. |
@@ -101,8 +109,8 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **5.4.1** WAF and SSO actually in the traffic path; origin not directly reachable | n/a | platform | As 4.7: Restricted and Confidential apps accept traffic only from the WAF. **Precedence:** As 4.7. |
 | **5.4.2** CORS not wildcarded | check | check | The code check fails CORS open to any origin. |
 | **5.4.3** Rate limiting on public-facing endpoints | n/a | flag | The assessor flags public endpoints without rate limiting. |
-| **5.4.4** Key vaults and storage closed to the internet; firewalled to the subnet | n/a | platform | The hosting module closes public network access and, for Restricted and Confidential apps, firewalls them to AIToolsRestricted. |
-| **5.4.5** Minimum TLS 1.2 set explicitly | n/a | platform | Set explicitly by the hosting module on storage and Container Apps. |
+| **5.4.4** Key vaults and storage closed to the internet; firewalled to the subnet | n/a | platform | Default-deny network rules on every app's key vault and storage: the key vault admits the app's environment subnet and campus, storage admits only that subnet. Restricted and Confidential apps' environment is on AIToolsRestricted. An environment's subnet is shared by its apps, so each app's own managed identity, through RBAC at resource scope, is what keeps one app out of another's vault and storage. |
+| **5.4.5** Minimum TLS 1.2 set explicitly | n/a | platform | Set explicitly by the hosting module on storage. Container Apps has no minimum to set: its HTTPS endpoints always use TLS 1.2 or 1.3. |
 | **5.4.6** Egress reviewed; unrestricted egress only as a documented decision | n/a | flag | The assessor compares outbound calls in the code with the passport's `integrations`. |
 | **5.5.1** Parameterized queries only | n/a | flag | Security rubric: injection. |
 | **5.5.2** Output encoding against XSS | flag | flag | Security rubric: injection, including XSS in client-rendered pages. |
@@ -111,11 +119,11 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **5.5.5** File upload validation, isolation and malware scanning | n/a | flag | Security rubric: file uploads. |
 | **5.6.1** Logs capture authentication, privileged actions, data access and changes | n/a | flag | Sign-ins are logged by Entra and the platform; the assessor flags apps whose privileged actions and data changes aren't logged. |
 | **5.6.2** Each log entry: who, what, resource, when, outcome | n/a | flag | As 5.6.1. |
-| **5.6.3** 12-month log retention | n/a | platform | Set by the hosting module on the app's Log Analytics workspace. |
-| **5.6.4** Logs tamper-evident | n/a | platform | Logs leave the app for Log Analytics and the SIEM, where the app's identity can't change them. |
-| **5.6.5** Logs retrievable by InfoSec within a day or two | n/a | platform | As 5.6.6. |
-| **5.6.6** Azure diagnostic logs forwarded to the SIEM | n/a | platform | The hosting module's diagnostic settings forward Key Vault, storage, Entra sign-in and app logs to the T&I SIEM. |
-| **5.6.7** Anomalous-access alerting for Confidential data | n/a | platform | Defender alerting on Confidential apps' resources (decisions on #85). |
+| **5.6.3** 12-month log retention | n/a | platform | Twelve months in the T&I SIEM, which receives the app's logs through Azure diagnostic settings (5.6.6). The app's Log Analytics workspace keeps 30 days for PE. **Gap:** As 5.6.6. |
+| **5.6.4** Logs tamper-evident | n/a | platform | Logs leave the app for Log Analytics and the SIEM, where the app's identity can't change them. **Gap:** As 5.6.6. |
+| **5.6.5** Logs retrievable by InfoSec within a day or two | n/a | platform | As 5.6.6. **Gap:** As 5.6.6. |
+| **5.6.6** Azure diagnostic logs forwarded to the SIEM | n/a | platform | The hosting module's diagnostic settings send Key Vault, storage and Container Apps logs to the T&I SIEM. Entra sign-in and audit logs already reach the SIEM tenant-wide, outside any app. **Gap:** The route from the hosting module into the SIEM is an open question on #85, so nothing forwards yet. |
+| **5.6.7** Anomalous-access alerting for Confidential data | n/a | platform | Planned as Defender alerting on Confidential apps' storage and key vaults. **Gap:** Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for Storage and Defender for Key Vault on Confidential apps' resources, and their cost, still need a decision. |
 | **5.7.1** Patching: critical and high in 72 hours, the rest in 30 days | process | process | The findings sweep against the 72-hour and 30-day deadlines (Part 13, #36), and oversight's security rubric (#91). |
 | **5.7.2** No end-of-life runtime or framework | check | check | The dependency check fails a Node or Python version past end of life, from `engines`, `.nvmrc` and the Containerfile. |
 | **5.7.3** Endpoint protection on machines that access Davidson data | attested | attested | A ready-call attestation: a patched development machine running endpoint protection (#89). |
@@ -130,7 +138,7 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **5.8.8** Subscribed to security advisories for dependencies | platform | platform | Dependabot alerts on every hosted repository; the report pulls in open alerts (#35). |
 | **5.9.1** The build agent didn't hold dev and prod credentials together | attested | attested | `AGENTS.md` rule 6: the agent never holds production credentials. The builder confirms it at the ready call. |
 | **5.9.2** Destructive actions needed human approval during the build | attested | attested | `AGENTS.md` rule 7: schema changes, data deletion and deploys need the builder's explicit approval. |
-| **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer | platform | platform | Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from `main` after a merge that passed every required check. **Precedence:** Choreo's decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The checks are the gate, not a second person. |
+| **5.9.3** Production deploys use OIDC to a protected environment with a required reviewer | platform | platform | Deploys sign in with OIDC federated credentials that trust only `main`, so nothing deploys from a pull request, and the registry's admin user is off, so no deployment password exists. An app's first production deploy waits for PE's approval at the ready call, which stamps the approved passport's hash, and every deploy refuses a passport that doesn't match it. **Precedence:** Choreo's decision takes precedence (pipeline.md decision 25, 2026-10-12): PE approves an app's first production deploy, at the ready call. After that no reviewer sits on a deploy: builders merge their own pull requests once the CI checks pass, and deploys run from `main`. A changed passport re-runs the ready call, and a change to `AGENTS.md` or `CLAUDE.md` needs PE's review through `CODEOWNERS`. |
 | **5.9.4** No Davidson data used to train any AI model | attested | attested | A ready-call attestation; Claude Enterprise doesn't train on customer data. |
 | **5.9.5** AI vendor configured not to train; only sanitized data in public AI tools | attested | attested | A ready-call attestation: only sanitized data in AI tools other than Claude Enterprise (#89). |
 | **5.10.1** WCAG 2.1 Level AA | check | check | The accessibility check runs axe's WCAG 2.1 A and AA rules on the built pages; any violation fails (pipeline.md decision 36). |
@@ -172,8 +180,8 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | Item | Pages | Container | How it is met |
 |---|---|---|---|
 | **7.1** Secure transfer methods only | check | check | The code check fails plain `http://`; the platform serves HTTPS only. |
-| **7.2** Retention per data category, with automated deletion | n/a | platform | As 3.9. |
-| **7.3** File aging for file-based integrations | n/a | platform | As 3.9: storage lifecycle rules delete files after the retention window. |
+| **7.2** Retention per data category, with automated deletion | n/a | platform | As 3.9. **Gap:** As 3.9. |
+| **7.3** File aging for file-based integrations | n/a | platform | As 3.9: storage lifecycle rules delete files in blob storage after the retention window. **Gap:** As 3.9. |
 | **7.4** Decommissioning: data destroyed within 30 days of retirement, documented | process | process | The renewal sweep and sunset runbook: data destroyed within 30 days of retirement with a written record (Part 13, #36). |
 
 ## 8. Regulatory considerations
