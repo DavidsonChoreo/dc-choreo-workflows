@@ -332,6 +332,33 @@ test('accessibility: a WCAG 2.1 rule fails too, not only 2.0 ones', () => {
   assert.match(result.errors.join('\n'), /autocomplete/i);
 });
 
+// A Pages site without a custom domain is built for /<app>/, so its styles
+// load only when the check serves it there; low contrast shows only when they do.
+const styledPage = (href) => accessiblePage.replace('<title>', `<link rel="stylesheet" href="${href}"><title>`);
+const lowContrast = 'p { color: #bbb; background: #fff; }\n';
+
+test('accessibility: a Pages site is served under /<app>/, so its styles load', () => {
+  const result = run('accessibility', {
+    ...goodApp,
+    'PASSPORT.yml': pagesPassport,
+    '.output/public/index.html': styledPage('/library-hours/_nuxt/entry.css'),
+    '.output/public/_nuxt/entry.css': lowContrast,
+  });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.errors.join('\n'), /color-contrast|contrast/i);
+});
+
+test('accessibility: a Pages site on a custom domain is served from the root', () => {
+  const result = run('accessibility', {
+    ...goodApp,
+    'PASSPORT.yml': pagesPassport.replace('custom_domain: null', 'custom_domain: hours.example.org'),
+    '.output/public/index.html': styledPage('/_nuxt/entry.css'),
+    '.output/public/_nuxt/entry.css': lowContrast,
+  });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.errors.join('\n'), /color-contrast|contrast/i);
+});
+
 test('with CHOREO_RESULT_DIR set, a check writes its result there as JSON', () => {
   const outside = mkdtempSync(join(tmpdir(), 'results-'));
   const result = run('license', without('LICENSE'), { CHOREO_RESULT_DIR: outside });
