@@ -15,8 +15,9 @@ const validate = ajv.compile(reportSchema);
 
 // checkResults: { check, problems, warnings } per check, or { check, skipped, reason }.
 // judgments: { summary, flags, controls: [{ id, status, evidence }] }, or { refused: true }.
-// extraFlags: flags code found, not Claude: GitHub's open alerts (alerts.js) and
-// documents it couldn't read (documents.js). Kept even when Claude declined.
+// extraFlags: flags code found, not Claude: the checks' own flags (the audit's),
+// GitHub's open alerts (alerts.js) and documents it couldn't read (documents.js).
+// Kept even when Claude declined.
 // passport: the parsed passport; Comms' routing reads its classification.
 export function assembleReport({ app, passportSha, commit, runUrl, tier, map, rubric, checkResults, judgments, passport, extraFlags = [] }) {
   const results = new Map(checkResults.map((r) => [r.check, r]));
