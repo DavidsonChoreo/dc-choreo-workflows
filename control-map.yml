@@ -571,9 +571,10 @@ controls:
   met_by:
     pages: n/a
     container: platform
-  how: Planned as Defender alerting on Confidential apps' storage and key vaults.
-  gap: 'Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for
-    Storage and Defender for Key Vault on Confidential apps'' resources, and their cost, still need a decision.'
+  how: Chosen per app, in the conversation every Confidential app starts with (pipeline.md decision 29), with PE and
+    Information Security, before it's built. The options are Defender for Storage and Defender for Key Vault on the
+    app's resources, or detection rules in the SIEM on the logs 5.6.6 forwards.
+  gap: No Confidential app is hosted yet, so nothing alerts. The first one's conversation picks the mechanism.
 - id: 5.7.1
   summary: 'Patching: critical and high in 72 hours, the rest in 30 days'
   scope: process

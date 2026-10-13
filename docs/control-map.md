@@ -28,7 +28,7 @@ How each item in Information Security's review standard is met by a Choreo app. 
 - **5.6.4** Logs tamper-evident: As 5.6.6.
 - **5.6.5** Logs retrievable by InfoSec within a day or two: As 5.6.6.
 - **5.6.6** Azure diagnostic logs forwarded to the SIEM: The route from the hosting module into the SIEM is an open question on #85, so nothing forwards yet.
-- **5.6.7** Anomalous-access alerting for Confidential data: Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for Storage and Defender for Key Vault on Confidential apps' resources, and their cost, still need a decision.
+- **5.6.7** Anomalous-access alerting for Confidential data: No Confidential app is hosted yet, so nothing alerts. The first one's conversation picks the mechanism.
 - **5.8.4** Production dependencies pinned exactly: The checks don't yet fail a floating specifier, such as `^1.2.0`, in package.json.
 - **5.8.7** SBOM generated at each release and stored: Nothing generates an SBOM yet.
 - **7.2** Retention per data category, with automated deletion: As 3.9.
@@ -123,7 +123,7 @@ How each item in Information Security's review standard is met by a Choreo app. 
 | **5.6.4** Logs tamper-evident | n/a | platform | Logs leave the app for Log Analytics and the SIEM, where the app's identity can't change them. **Gap:** As 5.6.6. |
 | **5.6.5** Logs retrievable by InfoSec within a day or two | n/a | platform | As 5.6.6. **Gap:** As 5.6.6. |
 | **5.6.6** Azure diagnostic logs forwarded to the SIEM | n/a | platform | The hosting module's diagnostic settings send Key Vault, storage and Container Apps logs to the T&I SIEM. Entra sign-in and audit logs already reach the SIEM tenant-wide, outside any app. **Gap:** The route from the hosting module into the SIEM is an open question on #85, so nothing forwards yet. |
-| **5.6.7** Anomalous-access alerting for Confidential data | n/a | platform | Planned as Defender alerting on Confidential apps' storage and key vaults. **Gap:** Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for Storage and Defender for Key Vault on Confidential apps' resources, and their cost, still need a decision. |
+| **5.6.7** Anomalous-access alerting for Confidential data | n/a | platform | Chosen per app, in the conversation every Confidential app starts with (pipeline.md decision 29), with PE and Information Security, before it's built. The options are Defender for Storage and Defender for Key Vault on the app's resources, or detection rules in the SIEM on the logs 5.6.6 forwards. **Gap:** No Confidential app is hosted yet, so nothing alerts. The first one's conversation picks the mechanism. |
 | **5.7.1** Patching: critical and high in 72 hours, the rest in 30 days | process | process | The findings sweep against the 72-hour and 30-day deadlines (Part 13, #36), and oversight's security rubric (#91). |
 | **5.7.2** No end-of-life runtime or framework | check | check | The dependency check fails a Node or Python version past end of life, from `engines`, `.nvmrc` and the Containerfile. |
 | **5.7.3** Endpoint protection on machines that access Davidson data | attested | attested | A ready-call attestation: a patched development machine running endpoint protection (#89). |
