@@ -138,7 +138,8 @@ function plan(build, result) {
 }
 
 function runAudit() {
-  const npm = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8' });
+  // npm is a .cmd script on Windows, which needs a shell to run.
+  const npm = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', shell: process.platform === 'win32' });
   let report;
   try {
     report = JSON.parse(npm.stdout);
@@ -471,12 +472,12 @@ if (!check) {
   process.exit(2);
 }
 
-const { file, problems, warnings } = await check.run();
+const { file, problems, warnings, flags } = await check.run();
 report(check.title, file, problems, warnings);
 // The assessor reads every check's result from here (assessor/run.js).
 if (process.env.CHOREO_RESULT_DIR) {
   mkdirSync(process.env.CHOREO_RESULT_DIR, { recursive: true });
   const text = (p) => (typeof p === 'string' ? p : p.message);
-  writeFileSync(join(process.env.CHOREO_RESULT_DIR, `${name}.json`), JSON.stringify({ check: name, problems: problems.map(text), warnings }, null, 2));
+  writeFileSync(join(process.env.CHOREO_RESULT_DIR, `${name}.json`), JSON.stringify({ check: name, problems: problems.map(text), warnings, ...(flags && { flags }) }, null, 2));
 }
 process.exitCode = problems.length > 0 ? 1 : 0;
