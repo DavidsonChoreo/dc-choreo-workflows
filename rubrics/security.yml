@@ -3,11 +3,26 @@
 # something, and judges the controls listed against it, which are the items
 # control-map.yml marks `flag`. A test keeps every flagged control covered.
 #
-# severity is the default when the problem is found; the assessor may lower it
-# with a reason in the flag's detail. `when: llm` items run only when the
-# passport's `llm` is set.
+# severity is the default when the problem is found; the assessor may change it
+# with a reason in the flag's detail, by the definitions under `severities`.
+# High is reserved for egregious missteps (pipeline.md, decision 41): most
+# items default to medium, a review, and are raised only on evidence of harm.
+# `when: llm` items run only when the passport's `llm` is set.
 rubric: security
 version: 1
+severities:
+  high: >
+    An egregious misstep that is already harm or a breach of policy, not just a weakness: personal data
+    disclosed, in the repository or served to people who shouldn't see it; Restricted or Confidential data
+    handled against Davidson's data security policy or a regulation such as FERPA, GLBA or HIPAA. Blocks the
+    app until it's fixed.
+  medium: >
+    A weakness or gap a person should weigh before the app goes live: a security bug that could be exploited,
+    a missing safeguard, a vulnerable dependency. Raise it to high only when the evidence shows what high
+    describes, such as an injection that returns other students' records, and say so in the detail. Asks
+    for a review.
+  low: >
+    Worth knowing, and doesn't hold the app up.
 items:
   - id: record-level-security
     title: Record-level security
@@ -23,7 +38,7 @@ items:
     title: Authorization only in the browser
     tiers: [container]
     controls: ["4.3"]
-    severity: high
+    severity: medium
     look_for: >
       Role or permission checks that happen only in front-end code (hidden buttons, route guards, v-if on a
       role) with no matching check in the server handler. Every server route that changes data or returns
@@ -33,7 +48,7 @@ items:
     title: Admin tooling or debug endpoints exposed
     tiers: [container]
     controls: ["4.4"]
-    severity: high
+    severity: medium
     look_for: >
       Admin pages, debug or test routes, seed or reset endpoints, health endpoints that dump configuration,
       or development servers reachable in the production build.
@@ -42,7 +57,7 @@ items:
     title: Injection
     tiers: [pages, container]
     controls: ["5.5.1", "5.5.2", "5.5.3", "5.11.5"]
-    severity: high
+    severity: medium
     look_for: >
       SQL or NoSQL built by string concatenation with user input; user input passed to shell, eval or
       child processes; user content rendered as HTML without escaping (v-html, innerHTML,
@@ -53,7 +68,7 @@ items:
     tiers: [pages, container]
     when: llm
     controls: ["5.5.4"]
-    severity: high
+    severity: medium
     look_for: >
       Untrusted content (uploads, web pages, emails, API responses, form fields) placed in an LLM prompt
       where it can change the model's instructions or trigger tool calls. Look for instructions and
@@ -73,7 +88,7 @@ items:
     title: Webhook signatures
     tiers: [container]
     controls: ["5.11.8"]
-    severity: high
+    severity: medium
     look_for: >
       Incoming webhook handlers that act on the payload without first verifying the sender's signature
       or shared secret.
@@ -92,7 +107,7 @@ items:
     title: Endpoints protected only by an unguessable URL
     tiers: [container]
     controls: ["5.11.3"]
-    severity: high
+    severity: medium
     look_for: >
       Routes whose only protection is a long, random or secret path or query token, with no
       authentication or role check.
@@ -113,8 +128,9 @@ items:
     severity: medium
     look_for: >
       Data the code reads, stores or sends that the passport's classification and `retention` don't
-      cover; data more sensitive than the passport's `data_classification`; Restricted or Confidential
-      data sent to a service outside Davidson's infrastructure.
+      cover; data more sensitive than the passport's `data_classification`. Restricted or Confidential
+      data sent to a service outside Davidson's infrastructure breaks Davidson's data security policy:
+      flag it high.
 
   - id: unapproved-service
     title: Outside services not in the passport

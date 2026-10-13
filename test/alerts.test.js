@@ -62,7 +62,7 @@ test('Dependabot alerts are medium at worst: critical and high are one medium fl
   assert.equal(worst.evidence, `https://github.com/${REPO}/security/dependabot`);
 });
 
-test('CodeQL alerts use the security severity, and name the file and line', async () => {
+test('CodeQL alerts are medium at worst, by the security severity, and name the file and line', async () => {
   const { github } = fakeGitHub({
     code: [200, [
       codeAlert('js/reflected-xss', { security: 'high' }),
@@ -72,12 +72,13 @@ test('CodeQL alerts use the security severity, and name the file and line', asyn
   });
   const flags = await collectAlerts({ repository: REPO, github });
   assert.deepEqual(flags.map((f) => [f.id, f.severity]), [
-    ['alert-code-scanning', 'high'],
     ['alert-code-scanning', 'medium'],
     ['alert-code-scanning', 'low'],
   ]);
+  assert.match(flags[0].detail, /2 open serious alerts/);
   assert.match(flags[0].detail, /js\/reflected-xss.*server\/api\/notes\.post\.ts, line 14/);
-  assert.match(flags[2].detail, /app\.vue, line 3/);
+  assert.match(flags[0].detail, /js\/sql-injection/);
+  assert.match(flags[1].detail, /app\.vue, line 3/);
   assert.equal(flags[0].evidence, `https://github.com/${REPO}/security/code-scanning`);
 });
 

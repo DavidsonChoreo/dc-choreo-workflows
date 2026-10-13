@@ -8,6 +8,12 @@ const rubric = parse(readFileSync(new URL('../rubrics/security.yml', import.meta
 const map = loadControlMap();
 const byId = new Map(map.controls.map((c) => [c.id, c]));
 
+test('the rubric defines each severity, and only items about harm already done default to high', () => {
+  assert.deepEqual(Object.keys(rubric.severities).sort(), ['high', 'low', 'medium']);
+  // Decision 41: high is for egregious missteps, such as disclosure. Change this list only with that decision.
+  assert.deepEqual(rubric.items.filter((i) => i.severity === 'high').map((i) => i.id).sort(), ['real-data-in-repository', 'record-level-security']);
+});
+
 test('every rubric item is well formed, with a unique flag id', () => {
   const ids = rubric.items.map((i) => i.id);
   assert.equal(new Set(ids).size, ids.length);
