@@ -20,6 +20,7 @@ const goodApp = {
   Containerfile: `FROM node:22-slim@sha256:${'a'.repeat(64)}\nUSER node\nHEALTHCHECK CMD true\n`,
   'app.vue': '<template><main /></template>\n',
   '.github/CODEOWNERS': readFileSync(fixture('../canonical/CODEOWNERS'), 'utf8'),
+  '.github/workflows/deploy.yml': readFileSync(fixture('../canonical/deploy.yml'), 'utf8'),
 };
 
 // Runs one check in a fresh directory, the way CI runs it at an app's root.
@@ -134,6 +135,37 @@ test('files: an edited AGENTS.md fails with an annotation on it', () => {
   const result = run('files', { ...goodApp, 'AGENTS.md': goodApp['AGENTS.md'] + '\nMy own rule.\n' });
   assert.equal(result.status, 1);
   assert.match(result.errors[0], /^::error file=AGENTS.md,title=Governance files::/);
+});
+
+test('files: an edited deploy stub fails with an annotation on it', () => {
+  const stub = goodApp['.github/workflows/deploy.yml'].replace('cancel-in-progress: false', 'cancel-in-progress: true');
+  const result = run('files', { ...goodApp, '.github/workflows/deploy.yml': stub });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /^::error file=\.github\/workflows\/deploy\.yml,title=Governance files::/);
+});
+
+test('files: a container app without the deploy stub fails', () => {
+  const result = run('files', without('.github/workflows/deploy.yml'));
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /deploy\.yml` is missing/);
+});
+
+test('files: a Pages site needs no deploy stub', () => {
+  const pages = readFileSync(fixture('../examples/passport/library-hours.yml'), 'utf8');
+  const result = run('files', { ...without('.github/workflows/deploy.yml'), 'PASSPORT.yml': pages });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('files: an unreadable passport leaves the stub to the passport check', () => {
+  const result = run('files', { ...without('.github/workflows/deploy.yml'), 'PASSPORT.yml': 'app: [unclosed\n' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('canonical/hashes.json holds the canonical deploy stub', async () => {
+  const { hashOf } = await import('../checks/files.js');
+  const hashes = JSON.parse(readFileSync(fixture('../canonical/hashes.json'), 'utf8'));
+  const known = hashes['.github/workflows/deploy.yml'].map((entry) => entry.sha256);
+  assert.ok(known.includes(hashOf(readFileSync(fixture('../canonical/deploy.yml'), 'utf8'))));
 });
 
 test('an unknown check name exits 2 with usage', () => {

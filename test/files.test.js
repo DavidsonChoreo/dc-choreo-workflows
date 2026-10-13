@@ -44,6 +44,18 @@ test('Windows line endings are not an edit', () => {
   assert.equal(result.ok, true);
 });
 
+test('an edited deploy stub fails and says to ask PE for a different deploy', () => {
+  const stub = 'name: deploy\n';
+  const result = checkFiles({
+    files: { '.github/workflows/deploy.yml': stub + 'jobs: {}\n' },
+    hashes: { '.github/workflows/deploy.yml': [{ sha256: hashOf(stub), from: 'test' }] },
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.problems[0], /`\.github\/workflows\/deploy\.yml` has been edited/);
+  assert.match(result.problems[0], /Platform Engineering/);
+  assert.doesNotMatch(result.problems[0], /BUILDER\.md/);
+});
+
 import { checkCodeowners } from '../checks/files.js';
 
 const team = '@DavidsonChoreo/platform-engineering';

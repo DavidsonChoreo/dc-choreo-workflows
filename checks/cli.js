@@ -12,7 +12,7 @@ import { parseDocument } from 'yaml';
 import { checkPassport } from './passport.js';
 import { checkLicense } from './license.js';
 import { checkTier } from './tier.js';
-import { checkFiles, checkCodeowners } from './files.js';
+import { checkFiles, checkCodeowners, DEPLOY_STUB } from './files.js';
 import { explainSecrets } from './secrets.js';
 import { explainAudit } from './audit.js';
 import { checkIndexing } from './indexing.js';
@@ -75,8 +75,13 @@ function runTier() {
 
 function runFiles() {
   const hashes = JSON.parse(readFileSync(new URL('../canonical/hashes.json', import.meta.url), 'utf8'));
+  // Container apps deploy through the stub; a Pages site has none. An
+  // unreadable passport is the passport check's to report.
+  const passport = readPassport();
+  const governedPaths = ['AGENTS.md', 'CLAUDE.md'];
+  if (passport.value?.profile?.tier === 'container') governedPaths.push(DEPLOY_STUB);
   const files = Object.fromEntries(
-    ['AGENTS.md', 'CLAUDE.md'].map((path) => [path, existsSync(path) ? readFileSync(path, 'utf8') : null]),
+    governedPaths.map((path) => [path, existsSync(path) ? readFileSync(path, 'utf8') : null]),
   );
   const governed = checkFiles({ files, hashes });
   const problems = governed.problems.map((message) => ({

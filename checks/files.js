@@ -1,6 +1,6 @@
 // The governance-file check: AGENTS.md and CLAUDE.md are Platform
-// Engineering's, and every app carries a released copy of each. A copy
-// passes when it matches the hash of any released version in
+// Engineering's, and every app carries a released copy of each, as every
+// container app does of the deploy stub. A copy passes when it matches the hash of any released version in
 // canonical/hashes.json, so apps on an older package version still pass.
 
 import { createHash } from 'node:crypto';
@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 export function hashOf(text) {
   return createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
 }
+
+export const DEPLOY_STUB = '.github/workflows/deploy.yml';
 
 export function checkFiles({ files, hashes }) {
   const problems = [];
@@ -20,7 +22,9 @@ export function checkFiles({ files, hashes }) {
     }
     const known = (hashes[path] ?? []).map((entry) => entry.sha256);
     if (!known.includes(hashOf(text))) {
-      problems.push(`\`${path}\` has been edited. Platform Engineering owns it, so restore it with the package's update command. Your own notes for this repository belong in \`BUILDER.md\`.`);
+      problems.push(path === DEPLOY_STUB
+        ? `\`${path}\` has been edited. It's the deploy stub Platform Engineering owns, and it deploys your app the way it was reviewed, so restore it with the package's update command. If your app needs to deploy differently, ask Platform Engineering.`
+        : `\`${path}\` has been edited. Platform Engineering owns it, so restore it with the package's update command. Your own notes for this repository belong in \`BUILDER.md\`.`);
     }
   }
 
