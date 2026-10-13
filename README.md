@@ -31,14 +31,16 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
 | `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
 | `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
+| `canonical/deploy.yml` | The deploy stub the package writes into every container app, at `.github/workflows/deploy.yml`. It calls `deploy.yml` on every merge to `main` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
 | `actions/build/` | For every app: the dependency, runtime and code checks. For paved-road apps: `npm ci`, the audit, unused dependencies, `npm run build`, then indexing and accessibility (WCAG 2.1 AA) on the built site, in the runner's Chrome. Other stacks skip the build with a warning |
 | `test/` | Tests for the checks, run with `npm test`, `test/fixtures/app`, a sample container app that passes the file checks, and `test/fixtures/pages-app`, a sample Pages site that builds and passes indexing |
 | `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
 | `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |
+| `.github/workflows/deploy.yml` | The reusable deploy workflow for container apps: builds the image and its SBOM on a standard runner, pushes from the hub runner, attests the SBOM to the image's digest, and points the app at that digest. Names come from the passport's `app`; the registry from the organization's `CHOREO_REGISTRY` variable |
 
-The remaining checks, the reusable deploy workflow and the rubrics arrive here as the build goes on.
+The remaining checks and rubrics arrive here as the build goes on.
 
 ## Published schemas
 
