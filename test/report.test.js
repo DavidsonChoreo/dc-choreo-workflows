@@ -203,3 +203,19 @@ test('alerts stay in the report when the assessor declined', () => {
   const report = assembleReport({ ...base, judgments: { refused: true }, extraFlags: [alert('medium')] });
   assert.deepEqual(report.sections.security.flags.map((f) => f.id), ['alert-dependabot']);
 });
+
+test('a vulnerable dependency asks for review and never blocks (decision 39)', async () => {
+  const { explainAudit } = await import('../checks/audit.js');
+  const audit = explainAudit({
+    vulnerabilities: {
+      'node-forge': { name: 'node-forge', severity: 'high', via: [{ title: 'Signature forgery', severity: 'high' }], fixAvailable: false },
+      'simple-git': { name: 'simple-git', severity: 'critical', via: [{ title: 'Command injection', severity: 'critical' }], fixAvailable: true },
+    },
+  });
+  const checkResults = passing.map((r) => (r.check === 'audit' ? { check: 'audit', ...audit } : r));
+  const report = assembleReport({ ...base, checkResults, judgments: cleanJudgments(), extraFlags: audit.flags });
+  assert.equal(report.checks.find((c) => c.id === 'audit').result, 'pass');
+  assert.deepEqual(report.sections.security.flags.map((f) => [f.id, f.severity]), [['dependency-audit', 'medium']]);
+  assert.equal(report.sections.security.recommendation, 'review');
+  assert.equal(report.recommendation, 'review');
+});

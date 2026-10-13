@@ -74,7 +74,7 @@ const report = assembleReport({
   commit: execFileSync('git', ['-C', appDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
   tier, map, rubric, checkResults, judgments, passport,
-  extraFlags: [...alerts, unreadFlag(unread)].filter(Boolean),
+  extraFlags: [...checkResults.flatMap((r) => r.flags ?? []), ...alerts, unreadFlag(unread)].filter(Boolean),
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 // Claude's raw judgments, kept beside the report so a change to the

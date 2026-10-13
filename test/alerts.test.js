@@ -39,7 +39,7 @@ test('no open alerts means no flags, and asks only for open alerts', async () =>
   assert.ok(calls.every((p) => p.startsWith(`/repos/${REPO}/`) && p.includes('state=open')));
 });
 
-test('Dependabot alerts become one flag per severity, critical counting as high', async () => {
+test('Dependabot alerts are medium at worst: critical and high are one medium flag, the rest low', async () => {
   const { github } = fakeGitHub({
     dependabot: [200, [
       dependabotAlert('lodash', 'critical', 'Prototype pollution', '4.17.21'),
@@ -50,16 +50,16 @@ test('Dependabot alerts become one flag per severity, critical counting as high'
   });
   const flags = await collectAlerts({ repository: REPO, github });
   assert.deepEqual(flags.map((f) => [f.id, f.severity]), [
-    ['alert-dependabot', 'high'],
     ['alert-dependabot', 'medium'],
     ['alert-dependabot', 'low'],
   ]);
-  const high = flags[0];
-  assert.match(high.detail, /2 open/);
-  assert.match(high.detail, /`lodash`.*Prototype pollution.*4\.17\.21/);
-  assert.match(high.detail, /`axios`/);
-  assert.match(flags[2].detail, /no fixed version yet/i);
-  assert.equal(high.evidence, `https://github.com/${REPO}/security/dependabot`);
+  const worst = flags[0];
+  assert.match(worst.detail, /2 open high- or critical-severity alerts/);
+  assert.match(worst.detail, /`lodash`.*Prototype pollution.*4\.17\.21/);
+  assert.match(worst.detail, /`axios`/);
+  assert.match(flags[1].detail, /`nanoid`/);
+  assert.match(flags[1].detail, /no fixed version yet/i);
+  assert.equal(worst.evidence, `https://github.com/${REPO}/security/dependabot`);
 });
 
 test('CodeQL alerts use the security severity, and name the file and line', async () => {
@@ -102,7 +102,7 @@ test("alerts that can't be read leave a low flag saying which, and don't stop th
   });
   const flags = await collectAlerts({ repository: REPO, github });
   assert.deepEqual(flags.map((f) => [f.id, f.severity]), [
-    ['alert-dependabot', 'high'],
+    ['alert-dependabot', 'medium'],
     ['alerts-unreadable', 'low'],
   ]);
   assert.match(flags[1].detail, /CodeQL/);
