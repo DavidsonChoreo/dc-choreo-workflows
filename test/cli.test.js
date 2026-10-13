@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -362,6 +362,29 @@ test('accessibility: a WCAG 2.1 rule fails too, not only 2.0 ones', () => {
   const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': page });
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.errors.join('\n'), /autocomplete/i);
+});
+
+test('accessibility: with CHOREO_SCREENSHOT_DIR set, each page it checks is saved as a PNG named for its path', () => {
+  const shots = mkdtempSync(join(tmpdir(), 'shots-'));
+  const result = run('accessibility', {
+    ...goodApp,
+    'PASSPORT.yml': pagesPassport,
+    '.output/public/index.html': accessiblePage,
+    '.output/public/about/index.html': accessiblePage,
+  }, { CHOREO_SCREENSHOT_DIR: shots });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  assert.deepEqual(readdirSync(shots).sort(), ['about.png', 'index.png']);
+  for (const name of readdirSync(shots)) assert.ok(readFileSync(join(shots, name)).subarray(0, 4).equals(png), name);
+});
+
+test('accessibility: a very long page is captured to 8000 pixels, the most the Claude API accepts', () => {
+  const shots = mkdtempSync(join(tmpdir(), 'shots-'));
+  const tall = accessiblePage.replace('<p>Open 8 to 5.</p>', '<p style="height: 12000px">Open 8 to 5.</p>');
+  const result = run('accessibility', { ...goodApp, 'PASSPORT.yml': pagesPassport, '.output/public/index.html': tall }, { CHOREO_SCREENSHOT_DIR: shots });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const png = readFileSync(join(shots, 'index.png'));
+  assert.equal(png.readUInt32BE(20), 8000); // the IHDR chunk's height
 });
 
 // A Pages site without a custom domain is built for /<app>/, so its styles

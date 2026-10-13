@@ -154,7 +154,7 @@ function historyText({ files = [], leads = [], totalLeads = 0 } = {}) {
   return `From a scan of every commit in the repository's history.\n\nDocuments, images, Office and data files:\n${listed}\n\nLeads:\n${found}${more}`;
 }
 
-function userMessage({ passportText, checkResults, sources, history, documents = [] }) {
+function userMessage({ passportText, checkResults, sources, history, documents = [], screenshots = [] }) {
   const checks = checkResults.map((r) => {
     if (r.skipped) return `- ${r.check}: skipped (${r.reason ?? 'no reason given'})`;
     if (r.problems.length > 0) return `- ${r.check}: failed: ${r.problems.join(' ')}`;
@@ -168,6 +168,7 @@ function userMessage({ passportText, checkResults, sources, history, documents =
     { type: 'text', text: `The app's files (${sources.files.length}):\n\n${files}` },
     { type: 'text', text: historyText(history) },
     ...documents.flatMap((d) => [{ type: 'text', text: `=== ${d.path} (${where(d)}) ===` }, d.block]),
+    ...screenshots.flatMap((s) => [{ type: 'text', text: `=== Screenshot of the built app: ${s.page} ===` }, s.block]),
   ];
 }
 
@@ -176,7 +177,7 @@ export function hasLlm(passportText) {
   return /^llm:\s*(?!null\s*$)\S/m.test(passportText);
 }
 
-export function buildRequest({ tier, rubric, map, passportText, checkResults, sources, history, documents, comms = COMMS, sites = SITES }) {
+export function buildRequest({ tier, rubric, map, passportText, checkResults, sources, history, documents, screenshots, comms = COMMS, sites = SITES }) {
   const llm = hasLlm(passportText);
   const { brand, indexable } = parse(passportText, { schema: 'yaml-1.1' }) ?? {};
   return {
@@ -187,7 +188,7 @@ export function buildRequest({ tier, rubric, map, passportText, checkResults, so
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system: systemPrompt({ tier, rubric, map, comms, sites }),
-    messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources, history, documents }) }],
+    messages: [{ role: 'user', content: userMessage({ passportText, checkResults, sources, history, documents, screenshots }) }],
     output_config: {
       effort: EFFORT,
       format: { type: 'json_schema', schema: judgmentsSchema({ tier, rubric, map, llm, comms, brand, indexable }) },

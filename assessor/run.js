@@ -16,6 +16,7 @@ import { assembleReport } from './report.js';
 import { collectAlerts } from './alerts.js';
 import { scanHistory } from './history.js';
 import { prepareDocuments, unreadFlag } from './documents.js';
+import { readScreenshots } from './screenshots.js';
 
 // The checks the publish request runs, in report order. One with no result
 // file didn't run: an earlier step stopped it, or the app's stack skips it.
@@ -50,6 +51,8 @@ const tier = passport.profile.tier;
 const history = scanHistory(appDir);
 const { documents, unread } = prepareDocuments(appDir, history.files);
 console.log(`History: ${history.files.length} documents, images and data files; ${history.totalLeads} leads. Read ${documents.length} documents and images; ${unread.length} left for a person.`);
+const screenshots = readScreenshots(process.env.CHOREO_SCREENSHOT_DIR);
+console.log(`Screenshots: ${screenshots.length} sent to the assessor.`);
 
 const sources = collectSources(appDir);
 const build = (docs) => buildRequest({
@@ -59,6 +62,7 @@ const build = (docs) => buildRequest({
   sources,
   history,
   documents: docs,
+  screenshots,
 });
 
 const client = new Anthropic();
@@ -75,6 +79,7 @@ const report = assembleReport({
   runUrl: `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
   tier, map, rubric, checkResults, judgments, passport,
   extraFlags: [...checkResults.flatMap((r) => r.flags ?? []), ...alerts, unreadFlag(unread)].filter(Boolean),
+  screenshotsUrl: process.env.CHOREO_SCREENSHOTS_URL || undefined,
 });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 // Claude's raw judgments, kept beside the report so a change to the

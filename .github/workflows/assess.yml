@@ -53,6 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CHOREO_RESULT_DIR: ${{ github.workspace }}/results
+      # The accessibility check saves a PNG of each page here, for the
+      # reviewers and the Comms rubric. Only this workflow sets it.
+      CHOREO_SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
     steps:
       - name: Get a read token for the app
         id: reader
@@ -86,6 +89,14 @@ jobs:
       - { name: Secrets, uses: ./actions/secrets, continue-on-error: true, with: { working-directory: app } }
       - { name: "Dependencies, code and build", uses: ./actions/build, continue-on-error: true, with: { working-directory: app } }
 
+      - name: Keep the screenshots
+        id: screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
       - name: Install the document tools
         # poppler-utils counts PDF pages; LibreOffice converts Office files to
         # PDF, and is installed only when the app's history has any.
@@ -100,6 +111,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ steps.reader.outputs.token }}
           CHOREO_REPOSITORY: ${{ inputs.repository }}
+          CHOREO_SCREENSHOTS_URL: ${{ steps.screenshots.outputs.artifact-url }}
         run: |
           npm ci --omit=dev --no-audit --no-fund --loglevel=error
           node assessor/run.js app "$CHOREO_RESULT_DIR" report.json
