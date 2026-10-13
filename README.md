@@ -1,6 +1,6 @@
 # dc-choreo-workflows
 
-Shared CI for Choreo, the app hosting platform run by Davidson College Technology & Innovation's Platform Engineering team. Every repository Choreo hosts runs the checks and the deploy workflow kept here.
+Shared CI for Choreo, the app hosting platform run by Davidson College Technology & Innovation's Platform Engineering team. Every repository Choreo hosts runs the checks and the deploy workflow kept here, and the assessor that reviews an app at its publish request lives here too. The publish pipeline that drives it (the intake, the Kuali ready call and the stamp) is in the private [dc-choreo-factory](https://github.com/DavidsonChoreo/dc-choreo-factory).
 
 This repository is public on purpose. GitHub runs a required workflow only on repositories whose visibility matches it, and Choreo's hosted repositories are public.
 
@@ -25,7 +25,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `canonical/hashes.json` | The SHA-256 of every released version of `AGENTS.md`, `CLAUDE.md` and the deploy stub |
 | `rubrics/security.yml` | What the assessor looks for: 19 items, each with the flag id it raises and the controls it judges. A test keeps every `flag` control covered |
 | `rubrics/comms.yml` | What the assessor looks for on College Communications' behalf: 4 items from their Site Passport proposal, all medium |
-| `assessor/` and `.github/workflows/assess.yml` | The assessor: runs every check, has Claude (`claude-opus-5-5`, effort low) judge the code against the rubric, and assembles `report.json`, which must validate against the report schema |
+| `assessor/` and `.github/workflows/assess.yml` | The assessor: runs every check, has Claude (`claude-opus-5-5`, effort low) judge the code, the whole history's documents and images, and screenshots of the built pages against the security and Comms rubrics, adds the app's open GitHub alerts, and assembles `report.json`, which must validate against the report schema. Called privately by dc-choreo-factory at the publish request |
 | `control-map.yml` | How each of the 140 items in Information Security's review standard is met: by the platform, a check, an assessor flag, a builder attestation, or a pipeline step. The assessor starts the report's security section from it. Readable version: `docs/control-map.md` |
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
@@ -54,7 +54,7 @@ Each schema's `$id` is its address. A published version never changes, so these 
 
 ## The assessor
 
-`assess` runs at the publish request, or by hand (Actions → assess → Run workflow, with the app's `owner/name`). It runs every check against the app, saving each result, then sends the app's passport, check results and source to Claude with the security rubric and the control map. **Claude returns judgments only**: flags with file-and-line evidence, and a met or not-met decision for each `flag` control. Code then assembles `report.json`:
+`assess` runs at the publish request, called by dc-choreo-factory's `publish-review` so the report and screenshots of a still-private app stay private (pipeline.md, decision 39). It can also run by hand here (Actions → assess → Run workflow, with the app's `owner/name`), but its artifacts are then public, so do that only for hosted apps or test apps. It runs every check against the app, saving each result, then sends the app's passport, check results and source to Claude with the security rubric and the control map. **Claude returns judgments only**: flags with file-and-line evidence, and a met or not-met decision for each `flag` control. Code then assembles `report.json`:
 
 - `platform` controls are met, `check` controls follow the checks they name, `attested` ones are pending until the ready call, and `flag` ones take Claude's decision, or stay pending if it made none;
 - security says block on a high flag or a failed check; a control Claude marks not met takes the severity of its highest flag (high blocks, medium or no flag asks for review, low stays in the report without holding the app up); a medium flag or a pending check asks for review; otherwise approve. PE says review until its rubric exists;
@@ -63,7 +63,7 @@ Each schema's `$id` is its address. A published version never changes, so these 
 - College Communications' section follows its Site Passport proposal. Claude judges `rubrics/comms.yml` (College marks on an unbranded app, overlap with a site in `official-sites.yml`, competing with davidson.edu in search when indexable, content that doesn't match the stated audience); every Comms flag is medium and asks for review, never blocks. Code decides whether Comms reviews at all: public-branded always, campus-branded on the Pages tier, anything indexable or on a custom domain, and any Comms flag; otherwise their step auto-completes. At the publish request the accessibility check also saves a PNG of each page it loads (up to 8000 pixels tall), only when `CHOREO_SCREENSHOT_DIR` is set, which only `assess.yml` does; they're the run's `screenshots` artifact, linked from `sections.comms.screenshots`, and up to 10 go to Claude so the Comms rubric judges the rendered pages;
 - the overall recommendation follows the report schema's rule, and the report must validate against the schema or nothing is written.
 
-The model, `claude-opus-5-5` at effort `low`, is named once, in `assessor/assess.js`. The rubric and control map form a cached prompt prefix shared by every app on a tier. A safety decline falls back to another model server-side; if every model declines, the report says so and asks for a human review. The report is uploaded as the run's `report` artifact. It uses the `ANTHROPIC_API_KEY` organization secret, readable only by this repository, and the reader app to check out private apps. It checks out this repository at its own commit and uses the actions by local path, so call it only from within this repository.
+The model, `claude-opus-5-5` at effort `low`, is named once, in `assessor/assess.js`. The rubric and control map form a cached prompt prefix shared by every app on a tier. A safety decline falls back to another model server-side; if every model declines, the report says so and asks for a human review. The report is uploaded as the run's `report` artifact. It uses the `ANTHROPIC_API_KEY` organization secret (selected repositories: this one and dc-choreo-factory) and the reader app to check out private apps. A caller passes both as secrets. It checks out this repository by name at the caller's `workflows_ref` (`v1` by default; run by hand, its own commit) and uses the actions by local path, so the checks and the assessor are always one version.
 
 ## The app inventory
 
@@ -72,24 +72,26 @@ Every Choreo app, hosted or incubating, is listed on the `inventory` branch, reg
 - `inventory/index.json`: one line per app (name, repository, lifecycle, tier, department, business owner, purpose, and whether its passport is valid, invalid or missing). Hosted apps also list their app owners; incubating apps don't name their builders until the app is hosted, since they may be students who haven't published anything yet. Read it at `https://raw.githubusercontent.com/DavidsonChoreo/dc-choreo-workflows/inventory/inventory/index.json`.
 - `inventory/<app>.json`: each app's entry. The full monthly snapshot adds more to these later (DavidsonCollege/platform-engineering#91).
 
-Platform repositories, repositories with the `sandbox` topic, and archived repositories aren't apps and aren't listed. The collector reads the org with the `davidson-choreo-reader` GitHub App (read-only: contents, metadata, custom properties), whose ID is the `CHOREO_READER_APP_ID` variable and whose key is the `CHOREO_READER_PRIVATE_KEY` secret. It writes with the workflow's own token, so the inventory lives on its own branch and `main` keeps its pull-request rule.
+Platform repositories, repositories with the `sandbox` topic, and archived repositories aren't apps and aren't listed. The collector reads the org with the `davidson-choreo-reader` GitHub App (read-only: contents, metadata, custom properties, and code scanning, Dependabot and secret scanning alerts for the assessor), whose ID is the `CHOREO_READER_APP_ID` variable and whose key is the `CHOREO_READER_PRIVATE_KEY` secret. It writes with the workflow's own token, so the inventory lives on its own branch and `main` keeps its pull-request rule.
 
 ## When the checks run
 
 Incubating apps are private, and their builders have full autonomy: nothing runs in an incubating repository. The checks run at two points:
 
-- **The publish request.** When a builder asks to publish, the assessor run in this repository calls `checks.yml` with the app's `repository` and `ref`, `publish_request: true`, and a token that can read the private repository. This is where the real scrutiny starts, and it adds the workspace check.
+- **The publish request.** A builder opens a "Publish request" issue in their app's repository (the form is `canonical/publish-request.yml`). dc-choreo-factory's hourly intake runs `assess.yml` from here against the private repository, in a private run, and answers on the issue (decisions 39 and 44). This is where the real scrutiny starts.
 - **Every pull request on a hosted app.** The `lifecycle: hosted` ruleset requires `required.yml`, which calls `checks.yml`. Merges into `main` need the checks to pass, and a builder can't remove a required workflow.
 
 ## Versions
 
-Apps call `@v1`, a tag that moves forward with each compatible release, so fixes reach every app without anyone editing their repository. A change that would break apps ships as `@v2`. The workflows inside this repository also reference `@v1`, so a change to an action takes effect for apps when `v1` moves, not when it merges.
+Apps call `@v1`, a tag that moves forward with each compatible release, so fixes reach every app without anyone editing their repository. A change that would break apps ships as `@v2`. The workflows inside this repository also reference `@v1`, so a change to an action takes effect for apps when `v1` moves, not when it merges. dc-choreo-factory calls `assess.yml@v1` and reads the publish-request form at `v1` too.
+
+The `hosted-apps` ruleset names `required.yml` by commit SHA, not by tag: a required workflow named by tag never starts. So when a merge changes `required.yml`, the ruleset is pointed at the new commit as well as `v1` being moved.
 
 
 ## Working with the schemas
 
 - **Dates are quoted strings.** YAML reads an unquoted `2026-10-12` as a date object, which fails the schema. Write `created: "2026-10-12"`.
-- **Fields that re-run the ready call** are listed in the passport schema's `x-ready-call-fields`. A validator in strict mode, such as Ajv, needs that keyword allowed.
+- **The fields Information Security and College Communications care about** are listed in the passport schema's `x-ready-call-fields`. They once re-ran the ready call; since decision 42 a change to any passport field after go-live needs Platform Engineering's approval on its pull request instead. A validator in strict mode, such as Ajv, needs that keyword allowed.
 - **One passport rule lives outside the schema.** The business owner can't also be an app owner. JSON Schema can't compare two fields, so the passport check (`checks/passport.js`) enforces it.
 - **The passport hash** in a report is the SHA-256 of `PASSPORT.yml`'s bytes.
 - **Control IDs** in a report's security section are item numbers from Information Security's review standard, such as `4.3` for server-side authorization or `5.1.4` for testing that a lower role can't act as a higher one. Platform Engineering numbers the items in its copy of the standard.
