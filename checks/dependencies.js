@@ -1,6 +1,9 @@
 // The dependency checks (pipeline.md, deterministic checks):
 // - every new dependency exists on the registry, and a very new one warns,
-//   since an AI-invented name can be registered by someone else;
+//   since an AI-invented name can be registered by someone else. Platform
+//   Engineering's own packages, such as @davidson/choreo-layer, come from the
+//   scaffold's GitHub releases and are never on npm, so they're trusted by
+//   source; anything else from outside npm fails, saying where it comes from;
 // - no workflow auto-merges pull requests, Dependabot's included;
 // - no runtime is past end of life, by endoflife.date;
 // - unused dependencies warn, from knip.
@@ -16,6 +19,38 @@ export function newDependencies(base, head) {
   const names = (pkg) => [...Object.keys(pkg?.dependencies ?? {}), ...Object.keys(pkg?.devDependencies ?? {})];
   const before = new Set(names(base));
   return names(head).filter((name) => !before.has(name));
+}
+
+// Where Platform Engineering publishes its own packages.
+const DAVIDSON_RELEASES = 'https://github.com/DavidsonCollege/dc-choreo-scaffold/releases/download/';
+const OUTSIDE = /^(?:https?:|git(?:\+[a-z]+)?:|github:|gitlab:|bitbucket:|gist:|file:|link:|workspace:|portal:)/;
+const SHORTHAND = /^[A-Za-z0-9][\w.-]*\/[\w.-]+(?:#\S*)?$/;
+
+// Where a dependency's spec says it comes from: 'registry', 'davidson' (PE's
+// own releases) or 'outside' (any other URL, git, GitHub shorthand or path).
+export function sourceOf(spec) {
+  const text = String(spec ?? '').trim();
+  if (text.startsWith(DAVIDSON_RELEASES)) return 'davidson';
+  if (OUTSIDE.test(text) || SHORTHAND.test(text)) return 'outside';
+  return 'registry';
+}
+
+// deps: { name, spec } per new dependency. Returns the registry names to look
+// up (an npm: alias by the package it points to), and a problem for each one
+// from outside npm. PE's own packages need neither.
+export function checkSources(deps) {
+  const lookUp = [];
+  const problems = [];
+  for (const { name, spec } of deps) {
+    const source = sourceOf(spec);
+    if (source === 'davidson') continue;
+    if (source === 'outside') {
+      problems.push(`\`${name}\` comes from ${spec}, not the npm registry. Choreo apps take their packages from npm, where they can be checked; ask Platform Engineering if you need this one.`);
+      continue;
+    }
+    lookUp.push(String(spec).match(/^npm:(@?[^@\s]+)/)?.[1] ?? name);
+  }
+  return { lookUp, problems };
 }
 
 // `lookups` is one { name, exists, created } per new dependency, from the npm registry.
