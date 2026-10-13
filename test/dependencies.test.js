@@ -60,6 +60,16 @@ test('a package from outside npm fails, saying where it comes from rather than t
   assert.doesNotMatch(problems[0], /doesn't exist/);
 });
 
+test('an @davidson package from anywhere but PE\'s releases fails, since someone else owns @davidson on npm', () => {
+  for (const spec of ['^0.2.0', 'latest', 'https://example.org/davidson-choreo-layer-0.2.0.tgz']) {
+    const { lookUp, problems } = checkSources([{ name: '@davidson/choreo-layer', spec }]);
+    assert.deepEqual(lookUp, [], spec);
+    assert.equal(problems.length, 1, spec);
+    assert.match(problems[0], /Platform Engineering's packages come from its releases/, spec);
+  }
+  assert.match(checkSources([{ name: 'layer', spec: 'npm:@davidson/choreo-layer@0.2.0' }]).problems[0] ?? '', /Platform Engineering's packages come from its releases/);
+});
+
 test('an npm alias is looked up by the package it points to', () => {
   assert.deepEqual(checkSources([{ name: 'pad', spec: 'npm:left-pad@1.3.0' }]).lookUp, ['left-pad']);
 });
