@@ -44,11 +44,18 @@ export function checkSources(deps) {
   for (const { name, spec } of deps) {
     const source = sourceOf(spec);
     if (source === 'davidson') continue;
+    // Someone else owns the @davidson scope on npm (checked 2026-10-13), so a
+    // @davidson package from npm, or from any URL but PE's releases, could be anyone's.
+    const target = String(spec).match(/^npm:(@?[^@\s]+)/)?.[1] ?? name;
+    if (target.startsWith('@davidson/')) {
+      problems.push(`\`${name}\` isn't from Platform Engineering's releases. Platform Engineering's packages come from its releases (${DAVIDSON_RELEASES}…), and the @davidson name on npm belongs to someone else, so a copy from npm or another address could be anyone's. Run the package's update command to restore it, or ask Platform Engineering.`);
+      continue;
+    }
     if (source === 'outside') {
       problems.push(`\`${name}\` comes from ${spec}, not the npm registry. Choreo apps take their packages from npm, where they can be checked; ask Platform Engineering if you need this one.`);
       continue;
     }
-    lookUp.push(String(spec).match(/^npm:(@?[^@\s]+)/)?.[1] ?? name);
+    lookUp.push(target);
   }
   return { lookUp, problems };
 }
