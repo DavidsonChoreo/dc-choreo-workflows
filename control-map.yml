@@ -161,8 +161,9 @@ controls:
   met_by:
     pages: n/a
     container: platform
-  how: The hosting module's storage and key vault are RBAC-only and, for Restricted and Confidential apps, firewalled
-    to the AIToolsRestricted subnet in a US region. A Pages site has no storage.
+  how: 'The hosting module''s storage and key vault are RBAC-only, in a US region, behind default-deny network rules:
+    the key vault admits the app''s environment subnet and campus, storage admits only that subnet. Restricted and
+    Confidential apps run in their own environment, on AIToolsRestricted. A Pages site has no storage.'
 - id: '3.5'
   summary: Confidential or Restricted data leaving Davidson infrastructure
   scope: app
@@ -202,6 +203,8 @@ controls:
     container: platform
   how: The passport's `retention`, required when the app writes data; the hosting module builds storage lifecycle
     rules from it (Part 5).
+  gap: Lifecycle rules cover blob storage only. Data in a database (an app with a subnet of its own) or in Table or
+    Files storage needs its own scheduled deletion, which isn't designed yet.
 - id: '3.10'
   summary: Applicable regulations identified
   scope: app
@@ -257,8 +260,9 @@ controls:
   met_by:
     pages: platform
     container: platform
-  how: Container Apps and GitHub Pages serve HTTPS only, with TLS 1.2 minimum set by the hosting module; the code
-    check fails any plain `http://` call.
+  how: Container Apps' HTTPS endpoints always use TLS 1.2 or 1.3, and the hosting module keeps insecure connections
+    off, so HTTP redirects to HTTPS. Storage sets a TLS 1.2 minimum explicitly. GitHub Pages serves HTTPS only. The
+    code check fails any plain `http://` call.
 - id: '4.7'
   summary: WAF and Davidson SSO in front of internet-facing apps
   scope: app
@@ -458,15 +462,18 @@ controls:
   met_by:
     pages: n/a
     container: platform
-  how: The hosting module closes public network access and, for Restricted and Confidential apps, firewalls them
-    to AIToolsRestricted.
+  how: 'Default-deny network rules on every app''s key vault and storage: the key vault admits the app''s environment
+    subnet and campus, storage admits only that subnet. Restricted and Confidential apps'' environment is on
+    AIToolsRestricted. An environment''s subnet is shared by its apps, so each app''s own managed identity, through
+    RBAC at resource scope, is what keeps one app out of another''s vault and storage.'
 - id: 5.4.5
   summary: Minimum TLS 1.2 set explicitly
   scope: app
   met_by:
     pages: n/a
     container: platform
-  how: Set explicitly by the hosting module on storage and Container Apps.
+  how: 'Set explicitly by the hosting module on storage. Container Apps has no minimum to set: its HTTPS endpoints
+    always use TLS 1.2 or 1.3.'
 - id: 5.4.6
   summary: Egress reviewed; unrestricted egress only as a documented decision
   scope: app
@@ -530,7 +537,9 @@ controls:
   met_by:
     pages: n/a
     container: platform
-  how: Set by the hosting module on the app's Log Analytics workspace.
+  how: Twelve months in the T&I SIEM, which receives the app's logs through Azure diagnostic settings (5.6.6). The
+    app's Log Analytics workspace keeps 30 days for PE.
+  gap: As 5.6.6.
 - id: 5.6.4
   summary: Logs tamper-evident
   scope: app
@@ -538,6 +547,7 @@ controls:
     pages: n/a
     container: platform
   how: Logs leave the app for Log Analytics and the SIEM, where the app's identity can't change them.
+  gap: As 5.6.6.
 - id: 5.6.5
   summary: Logs retrievable by InfoSec within a day or two
   scope: app
@@ -545,21 +555,25 @@ controls:
     pages: n/a
     container: platform
   how: As 5.6.6.
+  gap: As 5.6.6.
 - id: 5.6.6
   summary: Azure diagnostic logs forwarded to the SIEM
   scope: app
   met_by:
     pages: n/a
     container: platform
-  how: The hosting module's diagnostic settings forward Key Vault, storage, Entra sign-in and app logs to the T&I
-    SIEM.
+  how: The hosting module's diagnostic settings send Key Vault, storage and Container Apps logs to the T&I SIEM.
+    Entra sign-in and audit logs already reach the SIEM tenant-wide, outside any app.
+  gap: 'The route from the hosting module into the SIEM is an open question on #85, so nothing forwards yet.'
 - id: 5.6.7
   summary: Anomalous-access alerting for Confidential data
   scope: app
   met_by:
     pages: n/a
     container: platform
-  how: 'Defender alerting on Confidential apps'' resources (decisions on #85).'
+  how: Planned as Defender alerting on Confidential apps' storage and key vaults.
+  gap: 'Not decided or built. #85 turned on Defender for Containers for registry image scanning only; Defender for
+    Storage and Defender for Key Vault on Confidential apps'' resources, and their cost, still need a decision.'
 - id: 5.7.1
   summary: 'Patching: critical and high in 72 hours, the rest in 30 days'
   scope: process
@@ -671,11 +685,14 @@ controls:
   met_by:
     pages: platform
     container: platform
-  how: Deploys use OIDC federated credentials, with basic deployment authentication disabled, and run only from
-    `main` after a merge that passed every required check.
-  precedence: 'Choreo''s decision takes precedence (pipeline.md decision 25, confirmed 2026-10-12): builders merge
-    their own pull requests once the CI checks pass, and deploys run from `main` with no required reviewer. The
-    checks are the gate, not a second person.'
+  how: Deploys sign in with OIDC federated credentials that trust only `main`, so nothing deploys from a pull
+    request, and the registry's admin user is off, so no deployment password exists. An app's first production deploy
+    waits for PE's approval at the ready call, which stamps the approved passport's hash, and every deploy refuses a
+    passport that doesn't match it.
+  precedence: 'Choreo''s decision takes precedence (pipeline.md decision 25, 2026-10-12): PE approves an app''s
+    first production deploy, at the ready call. After that no reviewer sits on a deploy: builders merge their own
+    pull requests once the CI checks pass, and deploys run from `main`. A changed passport re-runs the ready call,
+    and a change to `AGENTS.md` or `CLAUDE.md` needs PE''s review through `CODEOWNERS`.'
 - id: 5.9.4
   summary: No Davidson data used to train any AI model
   scope: app
@@ -918,13 +935,15 @@ controls:
     pages: n/a
     container: platform
   how: As 3.9.
+  gap: As 3.9.
 - id: '7.3'
   summary: File aging for file-based integrations
   scope: app
   met_by:
     pages: n/a
     container: platform
-  how: 'As 3.9: storage lifecycle rules delete files after the retention window.'
+  how: 'As 3.9: storage lifecycle rules delete files in blob storage after the retention window.'
+  gap: As 3.9.
 - id: '7.4'
   summary: 'Decommissioning: data destroyed within 30 days of retirement, documented'
   scope: process
