@@ -1,6 +1,6 @@
 {
   "inventory": 1,
-  "generated": "2026-10-13T06:51:18.516Z",
+  "generated": "2026-10-14T06:43:37.236Z",
   "apps": [
     {
       "app": "AssemblyViz",
@@ -39,6 +39,25 @@
       "lifecycle": "incubating",
       "purpose": "Building occupancy from Wi-Fi association data (XIQ), with calendar and Ad Astra overlays",
       "passport": "missing"
+    },
+    {
+      "app": "classes-now",
+      "repository": "DavidsonChoreo/classes-now",
+      "lifecycle": "hosted",
+      "tier": "pages",
+      "department": "Technology & Innovation",
+      "business_owner": {
+        "name": "Nick Roberts",
+        "email": "niroberts@davidson.edu"
+      },
+      "app_owners": [
+        {
+          "name": "JD Mills",
+          "email": "jdmills@davidson.edu"
+        }
+      ],
+      "purpose": "A public, live view of which classes are meeting right now in each campus building, built from the Registrar's course schedule, for students, visitors, and staff.",
+      "passport": "valid"
     }
   ]
 }

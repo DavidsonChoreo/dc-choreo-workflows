@@ -1,0 +1,24 @@
+{
+  "inventory": 1,
+  "app": {
+    "app": "classes-now",
+    "repository": "DavidsonChoreo/classes-now",
+    "lifecycle": "hosted",
+    "passport": "valid",
+    "tier": "pages",
+    "department": "Technology & Innovation",
+    "app_owners": [
+      {
+        "name": "JD Mills",
+        "email": "jdmills@davidson.edu"
+      }
+    ],
+    "business_owner": {
+      "name": "Nick Roberts",
+      "email": "niroberts@davidson.edu"
+    },
+    "purpose": "A public, live view of which classes are meeting right now in each campus building, built from the Registrar's course schedule, for students, visitors, and staff.",
+    "created": "2026-10-13",
+    "review": "2027-10-13"
+  }
+}
