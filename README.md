@@ -14,7 +14,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `checks/passport.js` | The passport check: the schema, plus the rule that the business owner isn't an app owner |
 | `checks/license.js` | A `LICENSE` file that matches the passport's `license`; Apache-2.0, MIT and BSD-3-Clause pass, others pass with a warning for review |
 | `checks/tier.js` | The code matches the tier: no `server/` on Pages; on a container app, a Containerfile with digest-pinned base images, a non-root final user and a healthcheck |
-| `checks/files.js` | `AGENTS.md`, `CLAUDE.md` and, in a container app, the deploy stub match a released canonical copy, and `CODEOWNERS` gives them and `PASSPORT.yml` to `@DavidsonChoreo/platform-engineering` |
+| `checks/files.js` | `AGENTS.md`, `CLAUDE.md` and, in a container app that has one, the deploy stub match a released canonical copy, and `CODEOWNERS` gives them, `PASSPORT.yml` and `.github/workflows/` to `@DavidsonChoreo/platform-engineering` |
 | `checks/secrets.js` | Explains a gitleaks scan of the full history: each secret, its file, line and first commit, never its value or author |
 | `checks/audit.js` | Explains `npm audit`. Never fails: every vulnerable package warns, and the assessor gets a flag, medium for high and critical, low for the rest, so a person reviews it at the publish request (decision 40) |
 | `checks/dependencies.js` | New dependencies exist on the registry (and warn when brand new), no workflow auto-merges, runtimes aren't past end of life (endoflife.date), and unused dependencies warn (knip) |
@@ -30,9 +30,8 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `official-sites.yml` | The websites College Communications authorizes, which the overlap check compares new apps against. Schema in `schemas/official-sites/` |
 | `collector/` | The inventory collector: one entry per Choreo app from its passport and custom properties, written daily to the `inventory` branch |
 | `.github/workflows/inventory.yml` | Runs the collector daily and on demand |
-| `canonical/CODEOWNERS` | The `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS` |
+| `canonical/CODEOWNERS` | PE's block of the `CODEOWNERS` the package writes into every app, at `.github/CODEOWNERS`: the passport, the governance files and `.github/workflows/` |
 | `canonical/publish-request.yml` | The publish-request issue form the package writes into every app, at `.github/ISSUE_TEMPLATE/publish-request.yml`. dc-choreo-factory's intake reads it at `v1` to find each answer by its field id (`summary`, `audience`, `notes`), so those ids and the title are fixed and the wording is free. Not enforced by the files check |
-| `canonical/deploy.yml` | The deploy stub the package writes into every container app, at `.github/workflows/deploy.yml`. It calls `deploy.yml` on every merge to `main` |
 | `actions/check/` | The file checks (passport, license, tier, files) as one composite action, so a run always uses the scripts from its own version |
 | `actions/secrets/` | Installs gitleaks (pinned, checksum verified), scans the full history and explains what it finds |
 | `actions/build/` | For every app: the dependency, runtime and code checks. For paved-road apps: `npm ci`, the audit, unused dependencies, `npm run build`, then indexing and accessibility (WCAG 2.1 AA) on the built site, in the runner's Chrome. Other stacks skip the build with a warning |
@@ -100,11 +99,11 @@ The `hosted-apps` ruleset names `required.yml` by commit SHA, not by tag: a requ
 
 `AGENTS.md` and `CLAUDE.md` belong to Platform Engineering, and every app carries a copy written by the package. An app passes when its copy matches **any** released version, so apps scaffolded with an older package still pass until they update.
 
-Container apps also carry the deploy stub at `.github/workflows/deploy.yml`, checked the same way against `canonical/deploy.yml`. Builders merge their own pull requests once the checks pass (decision 25), so this check is what keeps every deploy going through the reviewed workflow here. A Pages site has no stub and isn't checked for one.
+Hosted container apps also carry the deploy stub at `.github/workflows/deploy.yml`, checked the same way against its hashes. Builders merge their own pull requests once the checks pass (decision 25), so this check is what keeps every deploy going through the reviewed workflow here. The package writes no stub, since the `restrict-workflow-files` ruleset refuses workflow files from a builder in a private repository; Platform Engineering adds it in the deploy pull request at go-live, from the canonical copy in the `davidson-dev-ops` skill in DavidsonCollege/choreo-hosting-monorepo (DavidsonCollege/platform-engineering#134). So a container app without the stub passes, and an edited one fails. A Pages site has no stub and isn't checked for one.
 
-`CODEOWNERS` is checked by what it says, not by hash, so builders can add owners for their own files. The check reads the **last** line matching each governed file, since that's the line GitHub applies, and fails when it leaves out the PE team. The team needs write access to the repository for GitHub to honor it; repository creation grants it.
+`CODEOWNERS` is checked by what it says, not by hash, so builders can add owners for their own files. The check reads the **last** line matching each governed file, since that's the line GitHub applies, and fails when it leaves out the PE team. The same goes for `.github/workflows/`, and for any later line naming a workflow inside it: on a hosted, public app any workflow on `main` can sign in as the deploy identity, so every workflow change waits for PE. The team needs write access to the repository for GitHub to honor it; repository creation grants it.
 
-When a package release changes any of these files, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. A change to `canonical/deploy.yml` adds its new hash in the same pull request. `hashOf` in `checks/files.js` computes it.
+When a package release changes any of these files, its release adds an entry to `canonical/hashes.json` in a pull request here, with the file's SHA-256 after converting line endings to `\n` and a `from` naming the release. A change to the deploy stub's canonical copy, in the hosting monorepo, adds its new hash here first, merged with `v1` moved, and only then changes the template. `hashOf` in `checks/files.js` computes it.
 
 ## Working on the checks
 

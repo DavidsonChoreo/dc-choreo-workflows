@@ -1,5 +1,6 @@
-# The deploy workflow every hosted container app calls, through the stub the package writes at
-# .github/workflows/deploy.yml (canonical copy: canonical/deploy.yml). Part 5 of the build plan,
+# The deploy workflow every hosted container app calls, through the stub Platform Engineering adds at
+# .github/workflows/deploy.yml at go-live (canonical copy: the davidson-dev-ops skill's deploy-stub.yml in
+# DavidsonCollege/choreo-hosting-monorepo; its hashes in canonical/hashes.json). Part 5 of the build plan,
 # DavidsonCollege/platform-engineering#34.
 #
 #   plan    (ubuntu, no credentials)   only main deploys; the app's name and tier from PASSPORT.yml
