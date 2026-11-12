@@ -52,14 +52,15 @@ test('an edited deploy stub fails and says to ask PE for a different deploy', ()
   });
   assert.equal(result.ok, false);
   assert.match(result.problems[0], /`\.github\/workflows\/deploy\.yml` has been edited/);
-  assert.match(result.problems[0], /Platform Engineering/);
+  assert.match(result.problems[0], /ask Platform Engineering/);
+  assert.doesNotMatch(result.problems[0], /update command/);
   assert.doesNotMatch(result.problems[0], /BUILDER\.md/);
 });
 
 import { checkCodeowners } from '../checks/files.js';
 
 const team = '@DavidsonChoreo/platform-engineering';
-const canonical = `# Platform Engineering approves every change to these files.\n/PASSPORT.yml ${team}\n/AGENTS.md ${team}\n/CLAUDE.md ${team}\n`;
+const canonical = `# Platform Engineering approves every change to these files.\n/PASSPORT.yml ${team}\n/AGENTS.md ${team}\n/CLAUDE.md ${team}\n/.github/workflows/ ${team}\n`;
 
 test('codeowners: the canonical lines pass', () => {
   assert.equal(checkCodeowners(canonical).ok, true);
@@ -86,7 +87,7 @@ test('codeowners: a governed file without the team fails, naming it', () => {
 test('codeowners: a later catch-all line that drops the team fails, since the last match wins', () => {
   const result = checkCodeowners(`${canonical}* @someone\n`);
   assert.equal(result.ok, false);
-  assert.equal(result.problems.length, 3);
+  assert.equal(result.problems.length, 4);
   assert.match(result.problems[0], /last/);
 });
 
@@ -96,4 +97,34 @@ test('codeowners: a later catch-all that keeps the team passes', () => {
 
 test('codeowners: patterns without a leading slash count too', () => {
   assert.equal(checkCodeowners(canonical.replaceAll('/PASSPORT', 'PASSPORT')).ok, true);
+});
+
+test('codeowners: without the workflows line fails, naming the folder and the line to add', () => {
+  const result = checkCodeowners(canonical.replace(`/.github/workflows/ ${team}\n`, ''));
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /`\.github\/workflows\/`/);
+  assert.match(result.problems[0], new RegExp(`/\\.github/workflows/ ${team}`));
+});
+
+test('codeowners: the workflows folder can be written several ways', () => {
+  for (const pattern of ['.github/workflows/', '/.github/workflows', '/.github/workflows/**', '/.github/workflows/*', '/.github/']) {
+    const text = canonical.replace(`/.github/workflows/ ${team}`, `${pattern} ${team}`);
+    assert.equal(checkCodeowners(text).ok, true, pattern);
+  }
+});
+
+test('codeowners: a later line giving one workflow to someone else fails', () => {
+  const result = checkCodeowners(`${canonical}/.github/workflows/ci.yml @someone\n`);
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /`\/\.github\/workflows\/ci\.yml @someone`/);
+});
+
+test("codeowners: a builder's line for one workflow above PE's block is overridden, so passes", () => {
+  assert.equal(checkCodeowners(`/.github/workflows/ci.yml @someone\n${canonical}`).ok, true);
+});
+
+test('codeowners: a later line for one workflow that keeps the team passes', () => {
+  assert.equal(checkCodeowners(`${canonical}/.github/workflows/ci.yml @someone ${team}\n`).ok, true);
 });

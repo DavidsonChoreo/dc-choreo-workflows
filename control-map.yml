@@ -693,7 +693,7 @@ controls:
   precedence: 'Choreo''s decision takes precedence (pipeline.md decision 25, 2026-10-12): PE approves an app''s
     first production deploy, at the ready call. After that no reviewer sits on a deploy: builders merge their own
     pull requests once the CI checks pass, and deploys run from `main`. A changed passport re-runs the ready call,
-    and a change to `AGENTS.md` or `CLAUDE.md` needs PE''s review through `CODEOWNERS`.'
+    and a change to `AGENTS.md`, `CLAUDE.md` or any workflow needs PE''s review through `CODEOWNERS`.'
 - id: 5.9.4
   summary: No Davidson data used to train any AI model
   scope: app
