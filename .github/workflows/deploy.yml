@@ -3,7 +3,7 @@
 # DavidsonCollege/choreo-hosting-monorepo; its hashes in canonical/hashes.json). Part 5 of the build plan,
 # DavidsonCollege/platform-engineering#34.
 #
-#   plan    (ubuntu, no credentials)   only main deploys; the app's name and tier from PASSPORT.yml
+#   plan    (ubuntu, no credentials)   only main deploys; the app's name and tier from PASSPORT.yml; its Azure name
 #   build   (ubuntu, no credentials)   docker build from the Containerfile, and an SBOM of the image
 #   push    (dc-choreo-vnet)           docker push as the app's deploy identity; read the digest
 #   sbom    (ubuntu)                   attest the SBOM to that digest, in GitHub's attestation store
@@ -12,8 +12,11 @@
 # Images are built on GitHub's standard runners and only pushed from the hub runner, so no app or dependency code
 # runs on Davidson's network. The registry has public access off: only the hub runner reaches it.
 #
-# Names follow the hosting monorepo's convention, from the passport's `app`: repository <app>/<app> in the registry,
-# which the app's identities are granted on, and container app dc-<app>-app in dc-<app>-rg.
+# Names follow the hosting monorepo's convention. From the passport's `app`, the slug of up to 63 characters: repository
+# <app>/<app> in the registry, which the app's identities are granted on, and resource group dc-<app>-rg. The container
+# app is dc-<azure-name>-app, since Azure caps its name at 32 characters: <azure-name> is the spec's `azure_name`, up
+# to 18 characters, which Platform Engineering sets as the repository's `azure-name` custom property at the hosted
+# flip. An app without the property uses `app`, as every app hosted before it did.
 #
 # No reviewer sits on a deploy (pipeline.md decision 25): PE approves an app's first production deploy at the ready
 # call. Two refusals join this workflow later: a passport that doesn't match `approved-passport-sha` (#89), and a
@@ -52,6 +55,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       app: ${{ steps.passport.outputs.app }}
+      azure-name: ${{ steps.passport.outputs.azure-name }}
     steps:
       - name: Only main deploys
         env:
@@ -73,7 +77,9 @@ jobs:
           persist-credentials: false
 
       - id: passport
-        name: The app's name and tier, from its passport
+        name: The app's name and tier, from its passport, and its short Azure name
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ ! -f PASSPORT.yml ]; then
@@ -82,8 +88,9 @@ jobs:
           fi
           app="$(yq -r '.app // ""' PASSPORT.yml)"
           tier="$(yq -r '.profile.tier // ""' PASSPORT.yml)"
-          if ! [[ "$app" =~ ^[a-z][a-z0-9-]{0,23}[a-z0-9]$ ]]; then
-            echo "::error file=PASSPORT.yml::The passport's \`app\` needs to start with a letter and be 2 to 25 lowercase letters, numbers and hyphens, so the container app's name fits Azure's 32-character limit. Ask Platform Engineering."
+          slug='^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+          if ! [[ "$app" =~ $slug ]]; then
+            echo "::error file=PASSPORT.yml::The passport's \`app\` needs to be 1 to 63 lowercase letters, numbers and hyphens, starting and ending with a letter or number. It's \`$app\`. Ask Platform Engineering."
             exit 1
           fi
           if [ "$tier" != "container" ]; then
@@ -94,7 +101,27 @@ jobs:
             echo "::error::A container app needs a Containerfile at the repository's root. The package writes one; restore it, or ask Platform Engineering."
             exit 1
           fi
+
+          # The short name for Azure's length limits: the repository's azure-name custom property, set at the hosted
+          # flip. Reading property values needs only metadata access, which every job token has.
+          if ! azure_name="$(gh api "repos/$GITHUB_REPOSITORY/properties/values" \
+              --jq '.[] | select(.property_name == "azure-name") | .value // ""')"; then
+            echo "::error::Couldn't read this repository's custom properties, so there's no name to deploy under. Run the deploy again; if it fails the same way, ask Platform Engineering."
+            exit 1
+          fi
+          short='^[a-z0-9]+(-[a-z0-9]+)*$'
+          if [ -z "$azure_name" ]; then
+            if [ "${#app}" -gt 18 ] || ! [[ "$app" =~ $short ]]; then
+              echo "::error::This repository has no \`azure-name\` property, and the passport's \`app\` (\`$app\`) can't stand in for it: Azure needs a short name of at most 18 characters. Ask Platform Engineering to set \`azure-name\` to the spec's \`azure_name\`."
+              exit 1
+            fi
+            azure_name="$app"
+          elif [ "${#azure_name}" -gt 18 ] || ! [[ "$azure_name" =~ $short ]]; then
+            echo "::error::This repository's \`azure-name\` property is \`$azure_name\`. It needs to be at most 18 lowercase letters and numbers, in words joined by single hyphens, the same as the spec's \`azure_name\`. Ask Platform Engineering."
+            exit 1
+          fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "azure-name=$azure_name" >> "$GITHUB_OUTPUT"
 
   build:
     name: build
@@ -210,6 +237,7 @@ jobs:
       id-token: write
     env:
       APP: ${{ needs.plan.outputs.app }}
+      AZURE_NAME: ${{ needs.plan.outputs.azure-name }}
       REGISTRY: ${{ inputs.registry }}
       DIGEST: ${{ needs.push.outputs.digest }}
     steps:
@@ -228,17 +256,17 @@ jobs:
           set -euo pipefail
           az containerapp update \
             --resource-group "dc-$APP-rg" \
-            --name "dc-$APP-app" \
+            --name "dc-$AZURE_NAME-app" \
             --image "$REGISTRY.azurecr.io/$APP/$APP@$DIGEST" \
             --output none
 
       - name: Wait for a healthy revision
         run: |
           set -euo pipefail
-          revision="$(az containerapp show -g "dc-$APP-rg" -n "dc-$APP-app" --query properties.latestRevisionName -o tsv)"
+          revision="$(az containerapp show -g "dc-$APP-rg" -n "dc-$AZURE_NAME-app" --query properties.latestRevisionName -o tsv)"
           # Healthy is the test, not Running: an app that scales to zero can be healthy with no replica running.
           for _ in $(seq 1 40); do
-            read -r running health < <(az containerapp revision show -g "dc-$APP-rg" -n "dc-$APP-app" --revision "$revision" \
+            read -r running health < <(az containerapp revision show -g "dc-$APP-rg" -n "dc-$AZURE_NAME-app" --revision "$revision" \
               --query '[properties.runningState, properties.healthState]' -o tsv | tr '\n' ' ')
             case "$running" in
               Failed|Degraded|Stopped)
@@ -252,7 +280,7 @@ jobs:
             echo "::error::Revision $revision wasn't healthy after 10 minutes: $running, $health."
             exit 1
           fi
-          fqdn="$(az containerapp show -g "dc-$APP-rg" -n "dc-$APP-app" --query properties.configuration.ingress.fqdn -o tsv)"
+          fqdn="$(az containerapp show -g "dc-$APP-rg" -n "dc-$AZURE_NAME-app" --query properties.configuration.ingress.fqdn -o tsv)"
           {
             echo "Deployed \`$APP\` at \`$DIGEST\`."
             echo

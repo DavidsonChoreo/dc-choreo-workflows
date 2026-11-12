@@ -38,7 +38,7 @@ This repository is public on purpose. GitHub runs a required workflow only on re
 | `test/` | Tests for the checks, run with `npm test`, `test/fixtures/app`, a sample container app that passes the file checks, and `test/fixtures/pages-app`, a sample Pages site that builds and passes indexing |
 | `.github/workflows/checks.yml` | The reusable workflow every app calls. Each check is its own job |
 | `.github/workflows/required.yml` | Calls `checks.yml` on pull requests. The `lifecycle: hosted` ruleset requires it |
-| `.github/workflows/deploy.yml` | The reusable deploy workflow for container apps: builds the image and its SBOM on a standard runner, pushes from the hub runner, attests the SBOM to the image's digest, and points the app at that digest. Names come from the passport's `app`; the registry from the organization's `CHOREO_REGISTRY` variable |
+| `.github/workflows/deploy.yml` | The reusable deploy workflow for container apps: builds the image and its SBOM on a standard runner, pushes from the hub runner, attests the SBOM to the image's digest, and points the app at that digest. Names come from the passport's `app`, except the container app's, `dc-<azure-name>-app`, which uses the repository's `azure-name` custom property (at most 18 characters, falling back to `app`); the registry from the organization's `CHOREO_REGISTRY` variable |
 
 The remaining checks and rubrics arrive here as the build goes on.
 
